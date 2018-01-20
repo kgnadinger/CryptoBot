@@ -28,7 +28,7 @@ class BinanceBot
 
 	def price_history(symbol, interval, limit=1)
 		data = klines(symbol, interval, limit)
-		data.map {|d| { open_time: d[0].to_i, close_price: d[4].to_f, close_time: d[5].to_i} }
+		data.map {|d| { open_time: d[0].to_i, close_price: d[4].to_f, close_time: (d[5].to_i + d[0].to_i) } }
 	end
 
 	def public_products

@@ -1,6 +1,7 @@
 require './bot'
 require './ven_eth'
 require 'sequel'
+require './back_tester'
 
 bot = BinanceBot.new
 
@@ -8,14 +9,27 @@ bot = BinanceBot.new
 	# - open_time
 	# - close_price
 	# - close_time
-raw_price_history = bot.price_history("VENETH", '5m', 500)
-db = Sequel.connect(adapter: 'mysql2', user: Secrets.database_username, 
-							 password: Secrets.database_password, database: 'binance')
-raw_price_history.each do |raw_price|
-	v = VenEth.new(opening_time: raw_price[:open_time], closing_price: raw_price[:close_price], closing_time: raw_price[:close_time], database: db)
-	v.save!
-end
+# raw_price_history = bot.price_history("VENETH", '5m', 500)
 
+# raw_price_history.each do |raw_price|
+# 	ven_eth = VenEth.where(opening_time: raw_price[:open_time])
+# 	if ven_eth && ven_eth.first
+# 		ven_eth.first.update(opening_time: raw_price[:open_time], 
+# 							 closing_price: raw_price[:close_price], 
+# 							 closing_time: raw_price[:close_time],
+# 							 updated_at: DateTime.now)
+# 	else 
+# 		ven_eth = VenEth.new(opening_time: raw_price[:open_time], 
+# 							 closing_price: raw_price[:close_price], 
+# 							 closing_time: raw_price[:close_time],
+# 							 created_at: DateTime.now,
+# 							 updated_at: DateTime.now)
+# 		ven_eth.save
+# 	end
+# end
+
+b = BackTester.new
+b.go
 
 
 
