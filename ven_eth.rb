@@ -27,11 +27,13 @@ class VenEth
 		@vens.insert(opening_time: @opening_time, closing_price: @closing_price, closing_time: @closing_time, created_at: DateTime.now, updated_at: DateTime.now)
 	end
 
+	# example - VenEth.find(1)
 	def self.find(id)
 		connect_to_database
 		@db[:vens].where(id: id).first
 	end
 
+	# example - VenEth.find_by(opening_price: 02448244)
 	def self.find_by(params)
 		self.connect_to_database
 		row = @db[:vens].where(params).first
