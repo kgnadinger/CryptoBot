@@ -4,7 +4,12 @@ require('./secrets')
 
 class BinanceBot
 	def initialize
-		@client = Binance::Client::REST.new api_key: Secrets.api_key, secret_key: Secrets.secret_key
+		if Secrets.api_key && Secrets.secret_key
+			@client = Binance::Client::REST.new api_key: Secrets.api_key, secret_key: Secrets.secret_key
+		else
+			puts "NO API_KEY AND/OR SECRET_KEY FOUND"
+			@client = Binance::Client::Rest.new
+		end
 	end
 
 	def ping
