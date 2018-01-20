@@ -30,7 +30,7 @@ class BackTester
 					if rsiAlert[:buy]
 						if eth_amount - eth_trading_chunks > 0
 							eth_amount = eth_amount - eth_trading_chunks
-							new_ven = (eth_trading_chunks / ven_eth[:closing_price])
+							new_ven = (eth_trading_chunks / ven_eth[:closing_price]) * (1 - @trading_fee)
 							ven_amount += new_ven
 							puts "New Ven Amount: #{ven_amount}, Price in Eth: #{ven_amount * ven_eth[:closing_price]}, Index: #{index}"
 						else
