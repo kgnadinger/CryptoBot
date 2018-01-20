@@ -12,7 +12,7 @@ raw_price_history = bot.price_history("VENETH", '5m', 500)
 db = Sequel.connect(adapter: 'mysql2', user: Secrets.database_username, 
 							 password: Secrets.database_password, database: 'binance')
 raw_price_history.each do |raw_price|
-	v = VenEth.new(closing_price: raw_price[:close_price], closing_time: raw_price[:close_time], database: db)
+	v = VenEth.new(opening_time: raw_price[:open_time], closing_price: raw_price[:close_price], closing_time: raw_price[:close_time], database: db)
 	v.create!
 end
 
