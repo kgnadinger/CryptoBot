@@ -1,4 +1,4 @@
-require 'bot'
+require './bot'
 
 bot = BinanceBot.new
 raw_price_history = bot.price_history("WTCETH", '5m', 500)
