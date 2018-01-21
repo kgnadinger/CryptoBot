@@ -12,15 +12,17 @@ class BackTester
 
 	def go
 		ven_amount = 0
-		eth_amount = 1
+		eth_amount = 0.01
 		eth_trading_chunks = eth_amount * @percentage_to_buy_with
 		ven_trading_chunks = ven_amount * @percentage_to_sell_with
-		venEthArray = VenEth.order(:opening_time).all
+		venEthArray = VenEth.order(:opening_time).select(:id, :closing_price).all
 		venEthArray.each_with_index do |ven_eth, index|
 			if index > 34
+				beginning_time = Time.now
 				price_history = venEthArray[0, index + 1].map { |eth| eth.closing_price }
-				if price_history.count > 500
-					price_history[index - 500, index]
+				if price_history.count > 501
+					puts "chaning price history: #{index}"
+					price_history = price_history[index - 500, index]
 				end
 				data = Indicators::Data.new(price_history)
 				rsi = data.calc(:type => :rsi, :params => 14).output
@@ -32,7 +34,7 @@ class BackTester
 							eth_amount = eth_amount - eth_trading_chunks
 							new_ven = (eth_trading_chunks / ven_eth[:closing_price]) * (1 - @trading_fee)
 							ven_amount += new_ven
-							puts "New Ven Amount: #{ven_amount}, Price in Eth: #{ven_amount * ven_eth[:closing_price]}, Index: #{index}"
+							puts "New Ven Amount: #{ven_amount}, Price: #{ven_eth[:closing_price] * ven_amount}, Index: #{index}"
 						else
 							puts "Ran out of Eth"
 						end
@@ -48,15 +50,18 @@ class BackTester
 						end
 					end
 				end
+				puts "Time End: #{(Time.now - beginning_time) * 1000} milliseconds, Index: #{index}}"
+				beginning_time = Time.now
 			end
 		end
 		puts "Ven Amount = #{ven_amount}, Price in Eth = #{ven_amount * venEthArray.last[:closing_price]}"
 		puts "Eth Amount = #{eth_amount}}"
+		
 	end
 
 	def macd_recently_crossed?(macdArray, index)
-		firstMacd = format_number_to_be_larger_than_one(macdArray[index - 1][0])
-		nextMacd = format_number_to_be_larger_than_one(macdArray[index][0])
+		firstMacd = format_number_to_be_larger_than_one(macdArray[macdArray.length - 2][0])
+		nextMacd = format_number_to_be_larger_than_one(macdArray[macdArray.length - 1][0])
 		if ((firstMacd / nextMacd) < 0)
 			true
 		else
@@ -77,7 +82,7 @@ class BackTester
 		crossed = false
 		buy = false
 		sell = false
-		rsiArray[(index - tolerance)..index].each do |rsi|
+		rsiArray[(rsiArray.length - 1 - tolerance)..(rsiArray.length - 1)].each do |rsi|
 			if rsi > 70
 				crossed = true
 				sell = true

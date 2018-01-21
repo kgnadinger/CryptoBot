@@ -9,7 +9,8 @@ bot = BinanceBot.new
 	# - open_time
 	# - close_price
 	# - close_time
-# raw_price_history = bot.price_history("VENETH", '5m', 500)
+# earliest_time = VenEth.order(:opening_time).first.opening_time
+# raw_price_history = bot.price_history_with_end_time("VENETH", '5m', 500, earliest_time)
 
 # raw_price_history.each do |raw_price|
 # 	ven_eth = VenEth.where(opening_time: raw_price[:open_time])
@@ -28,8 +29,30 @@ bot = BinanceBot.new
 # 	end
 # end
 
-b = BackTester.new
-b.go
+(1..10).each do |i|
+	earliest_time = VenEth.order(:opening_time).first.opening_time
+	raw_price_history = bot.price_history_with_end_time("VENETH", '5m', 500, earliest_time)
+
+	raw_price_history.each do |raw_price|
+		ven_eth = VenEth.where(opening_time: raw_price[:open_time])
+		if ven_eth && ven_eth.first
+			ven_eth.first.update(opening_time: raw_price[:open_time], 
+								 closing_price: raw_price[:close_price], 
+								 closing_time: raw_price[:close_time],
+								 updated_at: DateTime.now)
+		else 
+			ven_eth = VenEth.new(opening_time: raw_price[:open_time], 
+								 closing_price: raw_price[:close_price], 
+								 closing_time: raw_price[:close_time],
+								 created_at: DateTime.now,
+								 updated_at: DateTime.now)
+			ven_eth.save
+		end
+	end
+end
+
+# b = BackTester.new
+# b.go
 
 
 
