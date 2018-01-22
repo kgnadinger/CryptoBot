@@ -4,13 +4,25 @@ require 'sequel'
 require './back_tester'
 
 bot = BinanceBot.new
+# info = bot.account_info
+# eth_hash = {}
+# bot.account_info["balances"].each do |b|
+# 	if b["asset"] == "ETH"
+# 		eth_hash = b
+# 	end
+# end
+# puts eth_hash
+
+# create_test_order(symbol, side, type="MARKET", quantity)
+
+bot.stream
 
 # Returns a hash 
 	# - open_time
 	# - close_price
 	# - close_time
-# earliest_time = VenEth.order(:opening_time).first.opening_time
-# raw_price_history = bot.price_history_with_end_time("VENETH", '5m', 500, earliest_time)
+# earliest_time = EthUsdt.order(:opening_time).first.opening_time
+# raw_price_history = bot.price_history_with_end_time("ETHUSDT", '5m', 500, earliest_time)
 
 # raw_price_history.each do |raw_price|
 # 	ven_eth = VenEth.where(opening_time: raw_price[:open_time])
@@ -29,7 +41,7 @@ bot = BinanceBot.new
 # 	end
 # end
 
-# (1..30).each do |i|
+# (1..3).each do |i|
 # 	earliest_time_row = FunEth.order(:opening_time).first
 # 	if earliest_time_row && earliest_time_row.opening_time
 # 		raw_price_history = bot.price_history_with_end_time("FUNETH", '5m', 500, earliest_time_row.opening_time)
@@ -55,8 +67,8 @@ bot = BinanceBot.new
 # 	end
 # end
 
-b = BackTester.new
-b.calibrate
+# b = BackTester.new
+# b.go
 
 
 

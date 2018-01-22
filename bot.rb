@@ -1,6 +1,8 @@
 require('binance')
 require('indicators')
 require('./secrets')
+require 'eventmachine'
+require('./rsi_macd_algorithm')
 
 class BinanceBot
 	def initialize
@@ -47,15 +49,89 @@ class BinanceBot
 		@client.products
 	end
 
-	def rsi_recently_crossed_threshold(rsiArray, index)
-		tolerance = 10
-		crossed = false
-		rsiArray[(index - tolerance)..index].each do |rsi|
-			if rsi > 70 || rsi < 30
-				crossed = true
+	def create_test_order(symbol, side, type="MARKET", quantity)
+		@client.create_test_order symbol: symbol, side: side, type: type, quantity: quantity
+	end
+
+	def account_info
+		@client.account_info()
+	end
+
+	def stream
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	raw_price_history = price_history("FUNETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				ven_eth = FunEth.where(opening_time: raw_price[:open_time])
+				if ven_eth && ven_eth.first
+					ven_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					ven_eth = FunEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					ven_eth.save
+				end
 			end
+		  }
+		  message = proc { |e| 
+		  	hash = eval(e.data)
+		  	if hash[:k][:x]
+		  		puts hash
+		  		puts "Adding new FUNETH"
+		  		fun_eth = FunEth.where(opening_time: hash[:k][:t])
+		  		if fun_eth && fun_eth.first
+		  			fun_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			fun_eth = FunEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			fun_eth.save
+		  		end
+		  		fun_history = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  		price_history = fun_history.map { |f| f.closing_price }
+		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 1, price_history: price_history
+		  		puts algorithm.analyze
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { puts 'closed' }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  # Pass a symbol and event handler Hash to connect and process events
+		  # client.agg_trade symbol: 'FUNETH', methods: methods
+		  
+		  # kline takes an additional named parameter
+		  client.kline symbol: 'FUNETH', interval: '5m', methods: methods
+
+		  # As well as partial_book_depth
+		  # client.partial_book_depth symbol: 'XRPETH', level: '5', methods: methods
+
+		  # # Create a custom stream
+		  # client.single stream: { type: 'aggTrade', symbol: 'XRPETH'}, methods: methods
+
+		  # # Create multiple streams in one call
+		  # client.multi streams: [{ type: 'aggTrade', symbol: 'XRPETH' },
+		  #                        { type: 'ticker', symbol: 'XRPETH' },
+		  #                        { type: 'kline', symbol: 'XRPETH', interval: '1m'},
+		  #                        { type: 'depth', symbol: 'XRPETH', level: '5'}],
+		  #              methods: methods 
 		end
-		crossed
 	end
 end
 

@@ -10,7 +10,7 @@ class BackTester
 		@calculating_length = 500
 		@tolerance = 2
 		@sell_zone = 70
-		@price_multiplier = 1.5
+		@price_multiplier = 1.3
 	end
 
 	def calibrate
@@ -32,13 +32,13 @@ class BackTester
 		ven_amount = 0
 
 		# starting eth
-		eth_amount = 1
+		eth_amount = 100
 
 		# going to buy with 10% of the amount of eth left
 		eth_trading_chunks = eth_amount * @percentage_to_buy_with
 
 		# Grab all VenEth, ordered from smallest opening_time(integer)
-		venEthArray = FunEth.order(:opening_time).select(:id, :closing_price).all
+		venEthArray = EthUsdt.order(:opening_time).select(:id, :closing_price).all
 
 		recently_bought = false
 		recently_bought_price = 0.0
@@ -67,11 +67,13 @@ class BackTester
 				# calculate MACD
 				macdArray = data.calc(:type => :macd, :params => [12, 26, 9]).output
 
+				algorithm = RsiMacdAlgorithm.new(rsiTolerance: @tolerance)
+
 				# reference to rsi so I know whether to buy or sell
-				rsiAlert = rsi_recently_crossed_threshold?(rsi, index)
+				rsiAlert = algorithm.rsi_recently_crossed_threshold?(rsi, index)
 
 				# test to see if rsi went to the buy/sell zones and a macd cross
-				if macd_recently_crossed?(macdArray, index) && rsiAlert[:crossed]
+				if algorithm.macd_recently_crossed?(macdArray, index) && algorithm.rsiAlert[:crossed]
 
 					# rsi > 70
 					if rsiAlert[:buy]
@@ -104,13 +106,13 @@ class BackTester
 						end
 					elsif rsiAlert[:sell]
 						puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
-						if ven_amount - ven_trading_chunks.floor > 0
+						if ven_amount - ven_trading_chunks > 0
 
 							# "withdraw" the ven I'm selling
-							ven_amount = ven_amount - ven_trading_chunks.floor
+							ven_amount = ven_amount - ven_trading_chunks
 
 							# price of ven I'm selling in terms of eth
-							sell_amount = ven_trading_chunks.floor * ven_eth[:closing_price]
+							sell_amount = ven_trading_chunks * ven_eth[:closing_price]
 
 							# take out the fee
 							new_eth = sell_amount * (1 - @trading_fee)
@@ -126,55 +128,9 @@ class BackTester
 		puts "Ven Amount = #{ven_amount}, Price in Eth = #{ven_amount * venEthArray.last[:closing_price]}"
 		puts "Eth Amount = #{eth_amount}}"
 		full_amount = (ven_amount * venEthArray.last[:closing_price]) + eth_amount
-		puts "Increase/Decrease = #{(full_amount - 1) * 100}%"
+		puts "Increase/Decrease = #{((full_amount - ven_amount) / ven_amount) * 100}%"
 		full_amount
 		
 	end
-
-	# the macd crosses when the historgram switches sign
-	def macd_recently_crossed?(macdArray, index)
-
-		# formatting the last and 2nd to last histogram height
-		firstMacd = format_number_to_be_larger_than_one(macdArray[macdArray.length - 2][0])
-		nextMacd = format_number_to_be_larger_than_one(macdArray[macdArray.length - 1][0])
-
-		# divide the 2 to see if there was a switch in sign. 
-		# If it went from negative to positive, then the result of the division would negative
-		# If it went from positive to negative, then the result of the division would also be negative
-		# If it stayed the same sign, then the result of the division would be positive
-		if ((firstMacd / nextMacd) < 0)
-			true
-		else
-			false
-		end
-	end
-
-	# format the number to make sure I dont run into floating point issues
-	def format_number_to_be_larger_than_one(number)
-		if (number < 1 && number > 0) || (number < 0 && number > -1)
-			number = number * 10
-		else
-			number.to_f
-		end
-	end
-
-	# just simply calculating whether or not the last 4 rsi numbers crossed into either threshold
-	# rsi will always cross before macd which is why I test a few places backwards
-	def rsi_recently_crossed_threshold?(rsiArray, index)
-		# set in initializer now
-		# @tolerance = 1
-		crossed = false
-		buy = false
-		sell = false
-		rsiArray[(rsiArray.length - 1 - @tolerance)..(rsiArray.length - 1)].each do |rsi|
-			if rsi > @sell_zone
-				crossed = true
-				sell = true
-			elsif rsi < 30
-				buy = true
-				crossed = true
-			end
-		end
-		{ crossed: crossed, sell: sell, buy: buy }
-	end
+	
 end
