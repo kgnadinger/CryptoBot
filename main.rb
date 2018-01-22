@@ -1,5 +1,5 @@
 require './bot'
-require './ven_eth'
+Dir["./models/*.rb"].each {|file| require file }
 require 'sequel'
 require './back_tester'
 
@@ -29,19 +29,23 @@ bot = BinanceBot.new
 # 	end
 # end
 
-# (1..10).each do |i|
-# 	earliest_time = VenEth.order(:opening_time).first.opening_time
-# 	raw_price_history = bot.price_history_with_end_time("VENETH", '5m', 500, earliest_time)
+# (1..30).each do |i|
+# 	earliest_time_row = FunEth.order(:opening_time).first
+# 	if earliest_time_row && earliest_time_row.opening_time
+# 		raw_price_history = bot.price_history_with_end_time("FUNETH", '5m', 500, earliest_time_row.opening_time)
+# 	else
+# 		raw_price_history = bot.price_history("FUNETH", '5m', 500)
+# 	end
 
 # 	raw_price_history.each do |raw_price|
-# 		ven_eth = VenEth.where(opening_time: raw_price[:open_time])
+# 		ven_eth = FunEth.where(opening_time: raw_price[:open_time])
 # 		if ven_eth && ven_eth.first
 # 			ven_eth.first.update(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 updated_at: DateTime.now)
 # 		else 
-# 			ven_eth = VenEth.new(opening_time: raw_price[:open_time], 
+# 			ven_eth = FunEth.new(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 created_at: DateTime.now,
@@ -52,7 +56,7 @@ bot = BinanceBot.new
 # end
 
 b = BackTester.new
-b.go
+b.calibrate
 
 
 
