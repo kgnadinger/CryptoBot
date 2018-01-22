@@ -3,7 +3,7 @@ require('./bot')
 
 class BackTester
 
-	def initialize
+	def initialize(coin_array: [])
 		@trading_fee = 0.0005
 		@percentage_to_buy_with = 0.05
 		@percentage_to_sell_with = 0.10
@@ -11,20 +11,23 @@ class BackTester
 		@tolerance = 2
 		@sell_zone = 70
 		@price_multiplier = 1.3
+		@stop_loss_percentage = 0.01
+		@coin_array = coin_array
 	end
 
 	def calibrate
 		increase = 1
-		percentage = @percentage_to_sell_with
-		(1..10).each do |t|
+		stop_loss_percentage = @stop_loss_percentage
+		(1..3).each do |t|
 			amount = self.go
 			if amount > increase
 				increase = amount
+				stop_loss_percentage
 			end
-			puts "Amount: #{increase}, Price Multiplier: #{@price_multiplier}"
-			@price_multiplier += 0.1
+			puts "Amount: #{increase}, Stop Loss Percentage: #{@stop_loss_percentage}"
+			@stop_loss_percentage += 0.01
 		end
-		puts "Final Amount: #{increase}, Price Multiplier: #{@price_multiplier}"
+		puts "Final Amount: #{increase}, Price Multiplier: #{stop_loss_percentage}"
 	end
 
 	def go
@@ -38,10 +41,11 @@ class BackTester
 		eth_trading_chunks = eth_amount * @percentage_to_buy_with
 
 		# Grab all VenEth, ordered from smallest opening_time(integer)
-		venEthArray = FunEth.order(:opening_time).select(:id, :closing_price).all
+		venEthArray = @coin_array
 
 		recently_bought = false
 		recently_bought_price = 0.0
+		recently_bought_index = 1
 
 		venEthArray.each_with_index do |ven_eth, index|
 			# starting at 34 because that's how much price data I need to use the indicators
@@ -77,6 +81,19 @@ class BackTester
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
 						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
+					elsif index - recently_bought_index > 5
+						if ven_eth[:closing_price] < recently_bought_price * @stop_loss_percentage
+							# "withdraw" the ven I'm selling
+							ven_amount = ven_amount - ven_trading_chunks.floor
+
+							# price of ven I'm selling in terms of eth
+							sell_amount = ven_trading_chunks.floor * ven_eth[:closing_price]
+
+							# take out the fee
+							new_eth = sell_amount * (1 - @trading_fee)
+							eth_amount += new_eth
+							recently_bought = false
+						end
 					end				
 				elsif algorithm.analyze == "sell"
 					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
@@ -91,6 +108,7 @@ class BackTester
 						# take out the fee
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
+						recently_bought = false
 						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
 					else
 						puts "Ran out of VEN"

@@ -4,14 +4,25 @@ require 'sequel'
 require './back_tester'
 
 bot = BinanceBot.new
+# puts bot.getAmount("FUN")
+
 # info = bot.account_info
 # eth_hash = {}
+# fun_hash = {}
 # bot.account_info["balances"].each do |b|
 # 	if b["asset"] == "ETH"
 # 		eth_hash = b
 # 	end
+# 	if b["asset"] == "FUN"
+# 		fun_hash = b
+# 	end
 # end
-# puts eth_hash
+# puts eth_hash["free"]
+# puts fun_hash["free"]
+
+# bot.create_order("FUNETH", "sell", "MARKET", 1)
+
+
 
 # create_test_order(symbol, side, type="MARKET", quantity)
 
@@ -42,22 +53,22 @@ bot.stream
 # end
 
 # (1..30).each do |i|
-# 	earliest_time_row = FunEth.order(:opening_time).first
+# 	earliest_time_row = WtcEth.order(:opening_time).first
 # 	if earliest_time_row && earliest_time_row.opening_time
-# 		raw_price_history = bot.price_history_with_end_time("FUNETH", '5m', 500, earliest_time_row.opening_time)
+# 		raw_price_history = bot.price_history_with_end_time("WTCETH", '5m', 500, earliest_time_row.opening_time)
 # 	else
-# 		raw_price_history = bot.price_history("FUNETH", '5m', 500)
+# 		raw_price_history = bot.price_history("WTCETH", '5m', 500)
 # 	end
 
 # 	raw_price_history.each do |raw_price|
-# 		ven_eth = FunEth.where(opening_time: raw_price[:open_time])
+# 		ven_eth = WtcEth.where(opening_time: raw_price[:open_time])
 # 		if ven_eth && ven_eth.first
 # 			ven_eth.first.update(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 updated_at: DateTime.now)
 # 		else 
-# 			ven_eth = FunEth.new(opening_time: raw_price[:open_time], 
+# 			ven_eth = WtcEth.new(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 created_at: DateTime.now,
@@ -66,9 +77,9 @@ bot.stream
 # 		end
 # 	end
 # end
-
-# b = BackTester.new
-# b.go
+# funEthArray = FunEth.order(:opening_time).select(:id, :closing_price).all
+# b = BackTester.new coin_array: funEthArray
+# b.calibrate
 
 
 

@@ -53,8 +53,22 @@ class BinanceBot
 		@client.create_test_order symbol: symbol, side: side, type: type, quantity: quantity
 	end
 
+	def create_order(symbol, side, type, quantity)
+		@client.create_order symbol: symbol, side: side, type: type, quantity: quantity
+	end
+
 	def account_info
 		@client.account_info()
+	end
+
+	def getAmount(symbol)
+		balance = 0
+		account_info["balances"].each do |b|
+			if b["asset"] == symbol
+				balance = b["free"]
+			end
+		end
+		balance
 	end
 
 	def stream
@@ -85,7 +99,6 @@ class BinanceBot
 		  	hash = eval(e.data)
 		  	if hash[:k][:x]
 		  		puts hash
-		  		puts "Adding new FUNETH"
 		  		fun_eth = FunEth.where(opening_time: hash[:k][:t])
 		  		if fun_eth && fun_eth.first
 		  			fun_eth.first.update(opening_time: hash[:k][:t], 
@@ -103,7 +116,23 @@ class BinanceBot
 		  		fun_history = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
 		  		price_history = fun_history.map { |f| f.closing_price }
 		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 1, price_history: price_history
-		  		puts algorithm.analyze
+		  		signal = algorithm.analyze
+		  		if signal == "buy"
+		  			puts "****Buying****"
+		  			if getAmount("ETH").to_f > 0
+		  				create_order("FUNETH", "buy", "MARKET", 1)
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif signal == "sell"
+		  			puts "****Selling****"
+		  			if getAmount("FUN").to_f > 0
+		  				create_order("FUNETH", "sell", "MARKET", 1)
+		  			end
+		  		else
+		  			puts "****Waiting****"
+		  		end
+
 		  	end
 		  	
 		  }
