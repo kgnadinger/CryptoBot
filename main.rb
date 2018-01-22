@@ -41,7 +41,7 @@ bot.stream
 # 	end
 # end
 
-# (1..3).each do |i|
+# (1..30).each do |i|
 # 	earliest_time_row = FunEth.order(:opening_time).first
 # 	if earliest_time_row && earliest_time_row.opening_time
 # 		raw_price_history = bot.price_history_with_end_time("FUNETH", '5m', 500, earliest_time_row.opening_time)

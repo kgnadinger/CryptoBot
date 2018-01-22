@@ -5,7 +5,7 @@ class RsiMacdAlgorithm
 
 	attr_reader :price_history
 
-	def initialize(rsiTolerance: 1, price_history: [])
+	def initialize(rsiTolerance: 10, price_history: [])
 		@rsiTolerance = rsiTolerance
 		@price_history = price_history
 	end
@@ -113,16 +113,43 @@ class RsiMacdAlgorithm
 		crossed = false
 		buy = false
 		sell = false
-		rsiArray[(rsiArray.length - 1 - @rsiTolerance)..(rsiArray.length - 1)].each do |rsi|
-			if rsi > 70
+		last_index = rsiArray.count - 1
+		buyRsiToInspect = []
+		sellRsiToInspect = []
+		rsiArray[(last_index - @rsiTolerance)..last_index].each do |rsi|
+			if rsi >= 65
 				crossed = true
 				sell = true
-			elsif rsi < 30
+				sellRsiToInspect.push(rsi)
+			elsif rsi <= 35
 				buy = true
 				crossed = true
+				buyRsiToInspect.push(rsi)
 			end
 		end
-		{ crossed: crossed, sell: sell, buy: buy }
+		if buy
+			if buyRsiToInspect.count > 1
+				if buyRsiToInspect[(buyRsiToInspect.count -1)] > buyRsiToInspect[(buyRsiToInspect.count - 2)]
+					{ crossed: crossed, sell: false, buy: true }
+				else
+					{ crossed: crossed, sell: false, buy: false }
+				end
+			else
+				{ crossed: crossed, sell: false, buy: false }
+			end
+		elsif sell
+			if sellRsiToInspect.count > 1
+				if sellRsiToInspect[(sellRsiToInspect.count -1)] < sellRsiToInspect[(sellRsiToInspect.count - 2)]
+					{ crossed: crossed, sell: true, buy: false }
+				else
+					{ crossed: crossed, sell: false, buy: false }
+				end
+			else
+				{ crossed: crossed, sell: false, buy: false }
+			end
+		else
+			{ crossed: crossed, sell: false, buy: false }
+		end
 	end
 
 end
