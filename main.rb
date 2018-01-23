@@ -38,7 +38,7 @@ bot = BinanceBot.new
 
 # create_test_order(symbol, side, type="MARKET", quantity)
 
-bot.stream
+# bot.stream
 
 # Returns a hash 
 	# - open_time
@@ -89,9 +89,9 @@ bot.stream
 # 		end
 # 	end
 # end
-# funEthArray = FunEth.order(:opening_time).select(:id, :closing_price).all
-# b = BackTester.new coin_array: funEthArray
-# b.calibrate
+funEthArray = WtcEth.order(:opening_time).select(:id, :closing_price).all
+b = BackTester.new coin_array: funEthArray
+b.calibrate
 
 
 

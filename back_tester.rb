@@ -18,7 +18,7 @@ class BackTester
 	def calibrate
 		increase = 1
 		stop_loss_percentage = @stop_loss_percentage
-		(1..3).each do |t|
+		(1..10).each do |t|
 			amount = self.go
 			if amount > increase
 				increase = amount
@@ -27,7 +27,7 @@ class BackTester
 			puts "Amount: #{increase}, Stop Loss Percentage: #{@stop_loss_percentage}"
 			@stop_loss_percentage += 0.01
 		end
-		puts "Final Amount: #{increase}, Price Multiplier: #{stop_loss_percentage}"
+		puts "Final Amount: #{increase}, Stop Loss Percentage: #{stop_loss_percentage}"
 	end
 
 	def go
@@ -70,6 +70,7 @@ class BackTester
 						ven_amount += new_ven
 						recently_bought = true
 						recently_bought_price = ven_eth[:closing_price]
+						recently_bought_index = index
 						puts "New Fun Amount: #{ven_amount}, Price: #{ven_amount * ven_eth[:closing_price]}, Index: #{index}"
 					else
 						puts "Ran out of Eth"
@@ -80,7 +81,7 @@ class BackTester
 						sell_amount = ven_amount.floor * ven_eth[:closing_price]
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
-						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
+						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
 					elsif index - recently_bought_index > 5
 						if ven_eth[:closing_price] < recently_bought_price * @stop_loss_percentage
 							# "withdraw" the ven I'm selling
@@ -93,6 +94,7 @@ class BackTester
 							new_eth = sell_amount * (1 - @trading_fee)
 							eth_amount += new_eth
 							recently_bought = false
+							puts "New Eth Amount(stopping loss): #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
 						end
 					end				
 				elsif algorithm.analyze == "sell"
