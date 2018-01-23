@@ -17,6 +17,8 @@ class SecretsExample
 	end
 
 	def self.gmail_username
+		# this is for text messages
+		# go to https://www.google.com/settings/security/lesssecureapps to allow your computer to send emails through your gmail
 		'<username@gmail.com>'
 	end
 
