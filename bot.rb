@@ -3,6 +3,7 @@ require('indicators')
 require('./secrets')
 require 'eventmachine'
 require('./rsi_macd_algorithm')
+require './mailer'
 
 class BinanceBot
 	def initialize
@@ -10,7 +11,7 @@ class BinanceBot
 			@client = Binance::Client::REST.new api_key: Secrets.api_key, secret_key: Secrets.secret_key
 		else
 			puts "NO API_KEY AND/OR SECRET_KEY FOUND"
-			@client = Binance::Client::Rest.new
+			@client = Binance::Client::REST.new
 		end
 	end
 
@@ -121,6 +122,8 @@ class BinanceBot
 		  			puts "****Buying****"
 		  			if getAmount("ETH").to_f > 0
 		  				create_order("FUNETH", "buy", "MARKET", 1)
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying FUNETH")
 		  			else
 		  				puts "Out of ETH"
 		  			end
@@ -128,6 +131,7 @@ class BinanceBot
 		  			puts "****Selling****"
 		  			if getAmount("FUN").to_f > 0
 		  				create_order("FUNETH", "sell", "MARKET", 1)
+		  				mailer.send_text(text: "Selling FUNETH")
 		  			end
 		  		else
 		  			puts "****Waiting****"

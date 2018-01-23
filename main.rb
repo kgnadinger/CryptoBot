@@ -2,8 +2,20 @@ require './bot'
 Dir["./models/*.rb"].each {|file| require file }
 require 'sequel'
 require './back_tester'
+require 'gruff'
 
 bot = BinanceBot.new
+
+# g = Gruff::Line.new(600)
+# g.title = 'FUNETH BackTester'
+# prices = FunEth.order(:opening_time).select(:id, :closing_price).all.map { |f| f.closing_price }
+# g.data("FunEth", prices)
+# price_hash = {}
+# FunEth.order(:opening_time).select(:id, :closing_price).all.each_with_index do |f, index|
+# 	price_hash[index] = f.closing_time
+# end
+# g.labels = price_hash
+# g.write('exciting.png')
 # puts bot.getAmount("FUN")
 
 # info = bot.account_info

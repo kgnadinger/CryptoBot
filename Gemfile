@@ -13,6 +13,8 @@ gem 'indicators'
 gem 'securities'
 gem 'binance'
 gem 'sequel'
+gem 'gruff'
+gem 'pony'
 # Use Puma as the app server
 # Use SCSS for stylesheets
 # Use Uglifier as compressor for JavaScript assets
