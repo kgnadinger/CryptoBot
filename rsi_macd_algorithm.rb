@@ -4,10 +4,14 @@ require('./bot')
 class RsiMacdAlgorithm
 
 	attr_reader :price_history
+	attr_reader :last_rsis
 
-	def initialize(rsiTolerance: 10, price_history: [])
+	def initialize(rsiTolerance: 10, price_history: [], buy_zone: 30, sell_zone: 70)
 		@rsiTolerance = rsiTolerance
 		@price_history = price_history
+		@buy_zone = buy_zone
+		@sell_zone = sell_zone
+		@last_rsis = ""
 	end
 
 	def analyze
@@ -21,7 +25,6 @@ class RsiMacdAlgorithm
 		# if price_history.count > 251
 		# 	price_history = price_history[index - 250, index]
 		# end
-
 
 		data = Indicators::Data.new(@price_history)
 
@@ -117,11 +120,11 @@ class RsiMacdAlgorithm
 		buyRsiToInspect = []
 		sellRsiToInspect = []
 		rsiArray[(last_index - @rsiTolerance)..last_index].each do |rsi|
-			if rsi >= 65
+			if rsi >= @sell_zone
 				crossed = true
 				sell = true
 				sellRsiToInspect.push(rsi)
-			elsif rsi <= 35
+			elsif rsi <= @buy_zone
 				buy = true
 				crossed = true
 				buyRsiToInspect.push(rsi)
@@ -129,7 +132,7 @@ class RsiMacdAlgorithm
 		end
 		if buy
 			if buyRsiToInspect.count > 1
-				if buyRsiToInspect[(buyRsiToInspect.count -1)] > buyRsiToInspect[(buyRsiToInspect.count - 2)]
+				if buyRsiToInspect[0] > buyRsiToInspect[(buyRsiToInspect.count - 1)]
 					{ crossed: crossed, sell: false, buy: true }
 				else
 					{ crossed: crossed, sell: false, buy: false }
@@ -139,7 +142,7 @@ class RsiMacdAlgorithm
 			end
 		elsif sell
 			if sellRsiToInspect.count > 1
-				if sellRsiToInspect[(sellRsiToInspect.count -1)] < sellRsiToInspect[(sellRsiToInspect.count - 2)]
+				if sellRsiToInspect[0] < sellRsiToInspect[(sellRsiToInspect.count - 1)]
 					{ crossed: crossed, sell: true, buy: false }
 				else
 					{ crossed: crossed, sell: false, buy: false }

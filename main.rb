@@ -3,6 +3,7 @@ Dir["./models/*.rb"].each {|file| require file }
 require 'sequel'
 require './back_tester'
 require 'gruff'
+require('indicators')
 
 bot = BinanceBot.new
 
@@ -38,7 +39,7 @@ bot = BinanceBot.new
 
 # create_test_order(symbol, side, type="MARKET", quantity)
 
-# bot.stream
+bot.stream
 
 # Returns a hash 
 	# - open_time
@@ -65,22 +66,22 @@ bot = BinanceBot.new
 # end
 
 # (1..30).each do |i|
-# 	earliest_time_row = WtcEth.order(:opening_time).first
+# 	earliest_time_row = TrxEth.order(:opening_time).first
 # 	if earliest_time_row && earliest_time_row.opening_time
-# 		raw_price_history = bot.price_history_with_end_time("WTCETH", '5m', 500, earliest_time_row.opening_time)
+# 		raw_price_history = bot.price_history_with_end_time("TRXETH", '5m', 500, earliest_time_row.opening_time)
 # 	else
-# 		raw_price_history = bot.price_history("WTCETH", '5m', 500)
+# 		raw_price_history = bot.price_history("TRXETH", '5m', 500)
 # 	end
 
 # 	raw_price_history.each do |raw_price|
-# 		ven_eth = WtcEth.where(opening_time: raw_price[:open_time])
+# 		ven_eth = TrxEth.where(opening_time: raw_price[:open_time])
 # 		if ven_eth && ven_eth.first
 # 			ven_eth.first.update(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 updated_at: DateTime.now)
 # 		else 
-# 			ven_eth = WtcEth.new(opening_time: raw_price[:open_time], 
+# 			ven_eth = TrxEth.new(opening_time: raw_price[:open_time], 
 # 								 closing_price: raw_price[:close_price], 
 # 								 closing_time: raw_price[:close_time],
 # 								 created_at: DateTime.now,
@@ -89,10 +90,11 @@ bot = BinanceBot.new
 # 		end
 # 	end
 # end
-funEthArray = WtcEth.order(:opening_time).select(:id, :closing_price).all
-b = BackTester.new coin_array: funEthArray
-b.calibrate
+# funEthArray = WtcEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(15000).all.sort { |d,e| d.opening_time <=> e.opening_time }
+# b = BackTester.new coin_array: funEthArray
+# b.calibrate
 
+# bot.test_stream
 
 
 # price_history = raw_price_history.map { |p| p[:close_price] }
