@@ -363,7 +363,7 @@ class BinanceBot
 			  			else
 			  				puts "Out of ETH"
 			  			end
-			  		elsif FunSetting.last.recently_bought?
+			  		elsif !FunSetting.last.nil? && FunSetting.last.recently_bought?
 			  			if hash[:k][:c].to_f > FunSetting.last.recently_bought_price * 1.13
 				  			puts "***Selling To Keep Profit***"
 				  			if getAmount("FUN").to_f > 0
@@ -394,7 +394,7 @@ class BinanceBot
 			  			else
 			  				puts "Out of ETH"
 			  			end
-			  		elsif TrxSetting.last.recently_bought?
+			  		elsif !TrxSetting.last.nil? && TrxSetting.last.recently_bought?
 			  			if hash[:k][:c].to_f > TrxSetting.last.recently_bought_price * 1.19
 				  			puts "***Selling TRX To Keep Profit***"
 				  			if getAmount("TRX").to_f > 0
@@ -425,7 +425,7 @@ class BinanceBot
 			  			else
 			  				puts "Out of ETH"
 			  			end
-			  		elsif VenSetting.last.recently_bought?
+			  		elsif !VenSetting.last.nil? && VenSetting.last.recently_bought?
 			  			if hash[:k][:c].to_f > VenSetting.last.recently_bought_price * 1.3
 				  			puts "***Selling VEN To Keep Profit***"
 				  			if getAmount("VEN").to_f > 0
@@ -457,7 +457,7 @@ class BinanceBot
 			  			else
 			  				puts "Out of ETH"
 			  			end
-			  		elsif WtcSetting.last.recently_bought?
+			  		elsif !WtcSetting.last.nil? && WtcSetting.last.recently_bought?
 			  			if hash[:k][:c].to_f > WtcSetting.last.recently_bought_price * 1.13
 				  			puts "***Selling VEN To Keep Profit***"
 				  			if getAmount("WTC").to_f > 0
