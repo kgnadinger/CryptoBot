@@ -429,18 +429,18 @@ class BinanceBot
 			  			if hash[:k][:c].to_f > VenSetting.last.recently_bought_price * 1.3
 				  			puts "***Selling VEN To Keep Profit***"
 				  			if getAmount("VEN").to_f > 0
-				  				create_order("VENETH", "sell", "MARKET", 2)
+				  				# create_order("VENETH", "sell", "MARKET", 2)
 				  				VenSetting.last.update(recently_bought: false)
 				  				mailer = Mailer.new
-				  				mailer.send_text(text: "Selling VENETH")
+				  				mailer.send_text(text: "Sell your VENETH to maximize profts -- manual sell only")
 				  			end
 				  		end
 			  		elsif signal == "sell"
 			  			puts "****Selling VEN****"
 			  			if getAmount("VEN").to_f > 0
-			  				create_order("VENETH", "sell", "MARKET", 2)
+			  				# create_order("VENETH", "sell", "MARKET", 2)
 			  				VenSetting.last.update(recently_bought: false)
-			  				mailer.send_text(text: "Selling VENETH")
+			  				mailer.send_text(text: "Sell your VENETH to maximize profts -- manual sell only")
 			  			end
 			  		else
 			  			puts "****Waiting****"
