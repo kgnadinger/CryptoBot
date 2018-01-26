@@ -1,5 +1,7 @@
 Dir["./models/*.rb"].each {|file| require file }
 require('./bot')
+require('gruff')
+require('spreadsheet')
 
 class BackTester
 
@@ -9,9 +11,8 @@ class BackTester
 		@trading_fee = 0.0005
 		@percentage_to_buy_with = 0.01
 		@percentage_to_sell_with = 0.5
-		@calculating_length = 500
-		@sell_zone = 65
-		@buy_zone = 35
+		@sell_zone = 68
+		@buy_zone = 32
 		@price_multiplier = 1.13
 		@coin_array = coin_array
 	end
@@ -22,17 +23,18 @@ class BackTester
 	# at the end
 	def calibrate
 		increase = 0
-		sell_zone = @sell_zone
+		buy_sell_zone = { buy: @buy_zone, sell: @sell_zone }
 		(1..10).each do |t|
 			amount = self.go
 			if amount > increase
 				increase = amount
-				sell_zone = @sell_zone
+				buy_sell_zone = { buy: @buy_zone, sell: @sell_zone }
 			end
-			puts "Amount: #{increase}, Sell Zone: #{@sell_zone}"
+			puts "Amount: #{increase}, Buy Zone: #{@buy_zone} Sell Zone: #{@sell_zone}"
 			@sell_zone += 1
+			@buy_zone -= 1
 		end
-		puts "Final Amount: #{increase}, Sell Zone: #{sell_zone}"
+		puts "Final Amount: #{increase}, Buy Zone: #{buy_sell_zone[:buy]} Sell Zone: #{buy_sell_zone[:sell]}"
 	end
 
 	def go
@@ -57,6 +59,13 @@ class BackTester
 		daily_increases = []
 		last_day_amount = 0
 
+		x_values = []
+		buy_x_values = []
+		sell_x_values = []
+		y_values = []
+		buy_y_values = []
+		sell_y_values = []
+
 		coinEthArray.each_with_index do |ven_eth, index|
 			coin_trading_chunks = coin_amount * @percentage_to_sell_with
 			# starting at 34 because that's how much price data I need to use the indicators
@@ -65,16 +74,19 @@ class BackTester
 				price_history = coinEthArray[0, index + 1].map { |coin| coin.closing_price }
 
 				# chop to length of 250, optimization
-				if price_history.count > 251
-					price_history = price_history[index - 250, index]
+				if price_history.count > 500
+					price_history = price_history[index - 500, index]
 				end
 
 				# initialize algorithm to determine buy or sell
-				algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
+				algorithm = RsiMacdAlgorithm.new rsiTolerance: 15, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
+				signal = algorithm.analyze
 				
-				if algorithm.analyze == "buy"
+				if signal == "buy"
 					# make sure I have enough eth to buy with
 					if eth_amount - eth_trading_chunks > 0
+						buy_x_values.push(index)
+						buy_y_values.push(price_history.last)
 
 						# "withdraw" the eth that I'm buying with
 						eth_amount = eth_amount - eth_trading_chunks
@@ -86,22 +98,15 @@ class BackTester
 						# keep track that I recently bought so I can sell at a high price
 						recently_bought = true
 						recently_bought_price = ven_eth[:closing_price]
-						puts "New Fun Amount: #{coin_amount}, Price: #{coin_amount * ven_eth[:closing_price]}, Index: #{index}"
+						puts "New Fun Amount: #{coin_amount}, Price: #{coin_amount * ven_eth[:closing_price].round(10)}, Index: #{index}"
 					else
 						puts "Ran out of Eth"
-					end
-				elsif recently_bought
-					# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
-					if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
-						recently_bought = false
-						sell_amount = coin_amount.floor * ven_eth[:closing_price]
-						new_eth = sell_amount * (1 - @trading_fee)
-						eth_amount += new_eth
-						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
-					end			
-				elsif algorithm.analyze == "sell"
+					end	
+				elsif signal == "sell"
 					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
 					if coin_amount - coin_trading_chunks.floor > 0
+						sell_x_values.push(index)
+						sell_y_values.push(price_history.last)
 
 						# "withdraw" the ven I'm selling
 						coin_amount = coin_amount - coin_trading_chunks.floor
@@ -113,9 +118,31 @@ class BackTester
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
 						recently_bought = false
-						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
+						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
 					else
 						puts "Ran out of VEN"
+					end
+				# elsif recently_bought
+				# 	# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
+				# 	if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
+				# 		sell_x_values.push(index)
+				# 		sell_y_values.push(price_history.last)
+				# 		# "withdraw" the ven I'm selling
+				# 		coin_amount = coin_amount - coin_trading_chunks.floor
+
+				# 		# price of ven I'm selling in terms of eth
+				# 		sell_amount = coin_trading_chunks.floor * ven_eth[:closing_price]
+
+				# 		# take out the fee
+				# 		new_eth = sell_amount * (1 - @trading_fee)
+				# 		eth_amount += new_eth
+				# 		recently_bought = false
+				# 		puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
+				# 	end
+				else
+					if price_history.last
+						x_values.push(index)
+						y_values.push(price_history.last)
 					end
 				end
 			end
@@ -143,6 +170,14 @@ class BackTester
 			puts "Increase/Decrease = #{(total / daily_increases.count) * 100}%"
 		end
 		full_amount = eth_amount + (coin_amount * coinEthArray.last[:closing_price])
+
+		g = Gruff::Scatter.new(size=2000)
+		g.circle_radius = 1
+		g.title = "Test"
+		g.data(:price, x_values, y_values)
+		g.data(:buy, buy_x_values, buy_y_values)
+		g.data(:sell, sell_x_values, sell_y_values)
+		g.write('test.png')
 		full_amount
 		
 	end

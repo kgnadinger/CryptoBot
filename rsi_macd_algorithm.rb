@@ -1,42 +1,56 @@
 Dir["./models/*.rb"].each {|file| require file }
 require('./bot')
+require('linear-regression')
+require('matrix')
 
 class RsiMacdAlgorithm
 
 	attr_reader :price_history
-	attr_reader :last_rsis
+	attr_reader :last_rsi
+
+	def rsi_is_a_valley?(rsiArray, index)
+		if rsiArray[index - 1] && rsiArray[index + 1]
+			first = rsiArray[index - 1]
+			last = rsiArray[index + 1]
+			if first >= rsiArray[index] && last >= rsiArray[index]
+				true
+			else
+				false
+			end
+		else
+			false
+		end
+	end
+
+	def rsi_is_a_peak?(rsiArray, index)
+		if rsiArray[index - 1] && rsiArray[index + 1]
+			first = rsiArray[index - 1]
+			last = rsiArray[index + 1]
+			if first <= rsiArray[index] && last <= rsiArray[index]
+				true
+			else
+				false
+			end
+		else
+			false
+		end
+	end
 
 	def initialize(rsiTolerance: 10, price_history: [], buy_zone: 30, sell_zone: 70)
 		@rsiTolerance = rsiTolerance
 		@price_history = price_history
 		@buy_zone = buy_zone
 		@sell_zone = sell_zone
-		@last_rsis = ""
+		@last_rsi = ""
 	end
 
-	def analyze
-
-		# Initialize Indicator Class
-		data = Indicators::Data.new(@price_history)
-
-		# calculate rsi
-		rsi = data.calc(:type => :rsi, :params => 14).output
-
-		# calculate MACD
-		macdArray = data.calc(:type => :macd, :params => [12, 26, 9]).output
-
-		# reference to rsi so I know whether to buy or sell
-		rsiAlert = rsi_recently_crossed_threshold?(rsi)
-
-		# test to see if rsi went to the buy/sell zones and a macd cross
-		if macd_recently_crossed?(macdArray) && rsiAlert[:crossed]
-			if rsiAlert[:buy]
-				return "buy"
-			elsif rsiAlert[:sell]
-				return "sell"
-			end
+	# format the number to make sure I dont run into floating point issues
+	def format_number_to_be_larger_than_one(number)
+		if (number < 1 && number > 0) || (number < 0 && number > -1)
+			number = number * 10
+			format_number_to_be_larger_than_one(number)
 		else
-			return "wait"
+			number.to_f
 		end
 	end
 
@@ -57,13 +71,25 @@ class RsiMacdAlgorithm
 		end
 	end
 
-	# format the number to make sure I dont run into floating point issues
-	def format_number_to_be_larger_than_one(number)
-		if (number < 1 && number > 0) || (number < 0 && number > -1)
-			number = number * 10
-		else
-			number.to_f
+	def average_slope_of_array(array)
+		slopes = []
+		array.each_with_index do |a, index|
+			if index != 0
+				slope = (array[index] - array[index - 1]).to_f
+				slopes.push(slope)
+			end
 		end
+		average_slope = slopes.reduce(:+) / slopes.count
+		format_number_to_be_larger_than_one(average_slope)
+	end
+
+	def regress x, y, degree
+	  x_data = x.map { |xi| (0..degree).map { |pow| (xi**pow).to_f } }
+	 
+	  mx = Matrix[*x_data]
+	  my = Matrix.column_vector(y)
+	 
+	  ((mx.t * mx).inv * mx.t * my).transpose.to_a[0]
 	end
 
 	# just simply calculating whether or not the last 4 rsi numbers crossed into either threshold
@@ -78,42 +104,87 @@ class RsiMacdAlgorithm
 
 		# Inspect the last indexes in rsiArray(up to @tolerance) to see if they crossed the
 		# buy and sell zones
-		rsiArray[(last_index - @rsiTolerance)..last_index].each do |rsi|
-			if rsi >= @sell_zone
+		rsiToInspect = rsiArray[(last_index - @rsiTolerance)..last_index]
+		rsiToInspect.each_with_index do |rsi, index|
+			if rsi >= @sell_zone #&& rsi_is_a_peak?(rsiToInspect, index)
 				crossed = true
 				sell = true
 				sellRsiToInspect.push(rsi)
-			elsif rsi <= @buy_zone
+			elsif rsi <= @buy_zone #&& rsi_is_a_valley?(rsiToInspect, index)
 				buy = true
 				crossed = true
 				buyRsiToInspect.push(rsi)
 			end
 		end
-		# Inspects the 1st and Last Index of the array and sees which way it's trending
+
 		if buy
 			if buyRsiToInspect.count > 1
 				# is it trending up? Then buy
-				if buyRsiToInspect[0] > buyRsiToInspect[(buyRsiToInspect.count - 1)]
-					{ crossed: crossed, sell: false, buy: true }
+				# average_slope = average_slope_of_array(buyRsiToInspect)
+				# if average_slope > 0
+				xs = (1..buyRsiToInspect.count).map { |n| n }
+				quad_regression_sign = regress(xs, buyRsiToInspect, 2).last
+				# linear_regression = Regression::Linear.new(xs, buyRsiToInspect)
+				if quad_regression_sign > 0
+				# if buyRsiToInspect.last > buyRsiToInspect[buyRsiToInspect.count - 2]
+					{ crossed: true, sell: false, buy: true }
 				else
-					{ crossed: crossed, sell: false, buy: false }
+					{ crossed: true, sell: false, buy: false }
 				end
 			else
-				{ crossed: crossed, sell: false, buy: false }
+				{ crossed: true, sell: false, buy: false }
 			end
 		elsif sell
 			if sellRsiToInspect.count > 1
 				# is it trending down? Then sell
-				if sellRsiToInspect[0] < sellRsiToInspect[(sellRsiToInspect.count - 1)]
-					{ crossed: crossed, sell: true, buy: false }
+				# average_slope = average_slope_of_array(sellRsiToInspect)
+				xs = (1..sellRsiToInspect.count).map { |n| n }
+				quad_regression_sign = regress(xs, sellRsiToInspect, 2).last
+				# linear_regression = Regression::Linear.new(xs, sellRsiToInspect)
+				if quad_regression_sign < 0
+				# if sellRsiToInspect.last < sellRsiToInspect[sellRsiToInspect.count - 2]
+				# if average_slope < 0
+					{ crossed: true, sell: true, buy: false }
 				else
-					{ crossed: crossed, sell: false, buy: false }
+					{ crossed: true, sell: false, buy: false }
 				end
 			else
-				{ crossed: crossed, sell: false, buy: false }
+				{ crossed: true, sell: false, buy: false }
 			end
 		else
-			{ crossed: crossed, sell: false, buy: false }
+			{ crossed: true, sell: false, buy: false }
+		end
+	end
+
+
+
+	def analyze
+
+		# Initialize Indicator Class
+		data = Indicators::Data.new(@price_history)
+
+		# calculate rsi
+		rsi = data.calc(:type => :rsi, :params => 14).output
+
+		# calculate MACD
+		macdArray = data.calc(:type => :macd, :params => [12, 26, 9]).output
+
+		# reference to rsi so I know whether to buy or sell
+		rsiAlert = rsi_recently_crossed_threshold?(rsi)
+
+		# test to see if rsi went to the buy/sell zones and a macd cross
+		if macd_recently_crossed?(macdArray) && rsiAlert[:crossed]
+			if rsiAlert[:buy]
+				puts "RSI Buy Alert: #{rsiAlert}"
+				"buy"
+			elsif rsiAlert[:sell]
+				puts "RSI Sell Alert: #{rsiAlert}"
+				"sell"
+			else
+				"wait"
+			end
+		else
+			"wait"
 		end
 	end
 

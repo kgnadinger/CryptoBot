@@ -135,7 +135,7 @@ class BinanceBot
 					ven_eth.save
 				end
 			end
-			wtc_raw_price_history = price_history("VENETH", '5m', 500)
+			wtc_raw_price_history = price_history("WTCETH", '5m', 500)
 			wtc_raw_price_history.each do |raw_price|
 				wtc_eth = WtcEth.where(opening_time: raw_price[:open_time])
 				if wtc_eth && wtc_eth.first
@@ -508,7 +508,8 @@ class BinanceBot
 		  # # Create multiple streams in one call
 		  client.multi streams: [{ type: 'kline', symbol: 'FUNETH', interval: '5m'},
 		                         { type: 'kline', symbol: 'TRXETH', interval: '5m'},
-		                         { type: 'kline', symbol: 'VENETH', interval: '5m'}],
+		                         { type: 'kline', symbol: 'VENETH', interval: '5m'},
+		                         { type: 'kline', symbol: 'WTCETH', interval: '5m'}],
 		               methods: methods 
 		end
 	end
