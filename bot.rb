@@ -246,7 +246,7 @@ class BinanceBot
 		  		end
 
 		  		# Initialize algorithm
-		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 35, sell_zone: 68
+		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 32, sell_zone: 67
 		  		signal = algorithm.analyze # buy, sell or wait
 		  		if hash[:s] == "FUNETH"
 			  		if signal == "buy"
@@ -256,7 +256,7 @@ class BinanceBot
 			  			if getAmount("ETH").to_f > 0
 
 			  				# create a buy order
-			  				create_order("FUNETH", "buy", "MARKET", 5)
+			  				create_order("FUNETH", "buy", "MARKET", 50)
 
 			  				# log to database that we bought and its price
 			  				f = FunSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f)
@@ -277,10 +277,11 @@ class BinanceBot
 				  			puts "***Selling To Keep Profit***"
 
 				  			# check we have enough coin to sell
-				  			if getAmount("FUN").to_f > 0
+				  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
+				  			if fun > 0
 
 				  				# sell
-				  				create_order("FUNETH", "sell", "MARKET", 10)
+				  				create_order("FUNETH", "sell", "MARKET", fun_amount)
 
 				  				# update setting
 				  				FunSetting.last.update(recently_bought: false)
@@ -294,10 +295,11 @@ class BinanceBot
 			  			puts "****Selling****"
 
 			  			# check we have enough coin to sell
-			  			if getAmount("FUN").to_f > 0
+			  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
+				  		if fun > 0
 
 			  				# sell
-			  				create_order("FUNETH", "sell", "MARKET", 10)
+			  				create_order("FUNETH", "sell", "MARKET", fun_amount)
 
 			  				# update setting
 			  				FunSetting.last.update(recently_bought: false)
@@ -314,10 +316,11 @@ class BinanceBot
 			  			puts "****Buying****"
 
 			  			# make sure we have enough ETH to buy
-			  			if getAmount("ETH").to_f > 0
+			  			eth_amount = getAmount("ETH").to_f
+			  			if eth_amount > 0
 
 			  				# create a buy order
-			  				create_order("TRXETH", "buy", "MARKET", 5)
+			  				create_order("TRXETH", "buy", "MARKET", 50)
 
 			  				# log to database that we bought and its price
 			  				f = TrxSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f)
@@ -338,10 +341,11 @@ class BinanceBot
 				  			puts "***Selling TRX To Keep Profit***"
 
 				  			# check we have enough coin to sell
-				  			if getAmount("TRX").to_f > 0
+				  			trx_amount = (getAmount("TRX").to_f * 0.25).ceil
+				  			if trx_amount > 0
 
 				  				# sell
-				  				create_order("TRXETH", "sell", "MARKET", 10)
+				  				create_order("TRXETH", "sell", "MARKET", trx_amount)
 
 				  				# update setting
 				  				TrxSetting.last.update(recently_bought: false)
@@ -353,10 +357,11 @@ class BinanceBot
 				  		end
 			  		elsif signal == "sell"
 			  			puts "****Selling****"
-			  			if getAmount("TRX").to_f > 0
+			  			trx_amount = (getAmount("TRX").to_f * 0.25).ceil
+			  			if trx_amount > 0
 
 			  				# sell
-			  				create_order("TRXETH", "sell", "MARKET", 10)
+			  				create_order("TRXETH", "sell", "MARKET", trx_amount)
 
 			  				# update settings
 			  				TrxSetting.last.update(recently_bought: false)
@@ -373,7 +378,8 @@ class BinanceBot
 			  			puts "****Buying VEN****"
 
 			  			# make sure we have enough ETH to buy
-			  			if getAmount("ETH").to_f > 0
+			  			eth_amount = (getAmount("ETH").to_f * 0.01)
+			  			if eth_amount > 0
 
 			  				# create a buy order
 			  				create_order("VENETH", "buy", "MARKET", 1)
@@ -429,10 +435,12 @@ class BinanceBot
 			  			puts "****Buying WTC****"
 
 			  			# make sure we have enough ETH to buy
-			  			if getAmount("ETH").to_f > 0
+			  			eth_amount = getAmount("ETH").to_f * 0.01
+			  			if eth_amount > 0
 
+			  				wtc_amount = eth_amount / hash[:k][:c].to_f
 			  				# create a buy order
-			  				create_order("WTCETH", "buy", "MARKET", 1)
+			  				create_order("WTCETH", "buy", "MARKET", wtc_amount)
 
 			  				# log to database that we bought and its price
 			  				f = WtcSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f)
@@ -450,28 +458,30 @@ class BinanceBot
 
 			  			# is the new price larger than the last bought price * multiplier?
 			  			if hash[:k][:c].to_f > WtcSetting.last.recently_bought_price * 1.13
-				  			puts "***Selling VEN To Keep Profit***"
+				  			puts "***Selling WTC To Keep Profit***"
 
 				  			# check we have enough coin to sell
-				  			if getAmount("WTC").to_f > 0
+				  			wtc_amount = getAmount("WTC").to_f * 0.25
+				  			if wtc_amount > 0
 
 				  				# sell
-				  				create_order("WTCETH", "sell", "MARKET", 2)
+				  				create_order("WTCETH", "sell", "MARKET", wtc_amount)
 
 				  				# update setting
 				  				WtcSetting.last.update(recently_bought: false)
 
 				  				# text to alert that we sold
 				  				mailer = Mailer.new
-				  				mailer.send_text(text: "Selling VENETH")
+				  				mailer.send_text(text: "Selling WTCETH")
 				  			end
 				  		end
 			  		elsif signal == "sell"
 			  			puts "****Selling WTC****"
 
 			  			# check we have enough coin to sell
-			  			if getAmount("WTC").to_f > 0
-			  				create_order("WTCETH", "sell", "MARKET", 2)
+			  			wtc_amount = getAmount("WTC").to_f * 0.25
+				  		if wtc_amount > 0
+			  				create_order("WTCETH", "sell", "MARKET", wtc_amount)
 			  				WtcSetting.last.update(recently_bought: false)
 
 			  				# text to alert that we sold

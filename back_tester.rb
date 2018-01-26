@@ -10,10 +10,10 @@ class BackTester
 	def initialize(coin_array: [])
 		@trading_fee = 0.0005
 		@percentage_to_buy_with = 0.01
-		@percentage_to_sell_with = 0.5
-		@sell_zone = 68
+		@percentage_to_sell_with = 0.25
+		@sell_zone = 67
 		@buy_zone = 32
-		@price_multiplier = 1.13
+		@price_multiplier = 1.5
 		@coin_array = coin_array
 	end
 
@@ -31,8 +31,7 @@ class BackTester
 				buy_sell_zone = { buy: @buy_zone, sell: @sell_zone }
 			end
 			puts "Amount: #{increase}, Buy Zone: #{@buy_zone} Sell Zone: #{@sell_zone}"
-			@sell_zone += 1
-			@buy_zone -= 1
+			@sell_zone -= 1
 		end
 		puts "Final Amount: #{increase}, Buy Zone: #{buy_sell_zone[:buy]} Sell Zone: #{buy_sell_zone[:sell]}"
 	end
@@ -101,7 +100,29 @@ class BackTester
 						puts "New Fun Amount: #{coin_amount}, Price: #{coin_amount * ven_eth[:closing_price].round(10)}, Index: #{index}"
 					else
 						puts "Ran out of Eth"
-					end	
+					end
+				elsif recently_bought
+					# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
+					if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
+						sell_x_values.push(index)
+						sell_y_values.push(price_history.last)
+						# "withdraw" the ven I'm selling
+						coin_amount = coin_amount - coin_trading_chunks.floor
+
+						# price of ven I'm selling in terms of eth
+						sell_amount = coin_trading_chunks.floor * ven_eth[:closing_price]
+
+						# take out the fee
+						new_eth = sell_amount * (1 - @trading_fee)
+						eth_amount += new_eth
+						recently_bought = false
+						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
+					else
+						if price_history.last
+							x_values.push(index)
+							y_values.push(price_history.last)
+						end
+					end
 				elsif signal == "sell"
 					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
 					if coin_amount - coin_trading_chunks.floor > 0
@@ -122,23 +143,6 @@ class BackTester
 					else
 						puts "Ran out of VEN"
 					end
-				# elsif recently_bought
-				# 	# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
-				# 	if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
-				# 		sell_x_values.push(index)
-				# 		sell_y_values.push(price_history.last)
-				# 		# "withdraw" the ven I'm selling
-				# 		coin_amount = coin_amount - coin_trading_chunks.floor
-
-				# 		# price of ven I'm selling in terms of eth
-				# 		sell_amount = coin_trading_chunks.floor * ven_eth[:closing_price]
-
-				# 		# take out the fee
-				# 		new_eth = sell_amount * (1 - @trading_fee)
-				# 		eth_amount += new_eth
-				# 		recently_bought = false
-				# 		puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
-				# 	end
 				else
 					if price_history.last
 						x_values.push(index)

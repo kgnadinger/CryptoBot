@@ -8,7 +8,7 @@ require('indicators')
 bot = BinanceBot.new
 
 # Uncomment to start live trading bot
-# bot.stream
+bot.stream
 
 # Uncomment to start live test trading bot
 # bot.test_stream
@@ -48,11 +48,11 @@ bot = BinanceBot.new
 
 # Uncomment next 2 lines to initliaze BackTester which can be found in back_tester.rb
 # Replace WtcEth with coin pair of choice, replace number in limit() with how far back you want to go
-coinEthArray = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(10000).all.sort { |d,e| d.opening_time <=> e.opening_time }
-b = BackTester.new coin_array: coinEthArray
+# coinEthArray = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(5000).all.sort { |d,e| d.opening_time <=> e.opening_time }
+# b = BackTester.new coin_array: coinEthArray
 
 # Uncoment to use the calibrate a variable in back_tester(with previous 2 lines uncommented)
-b.calibrate
+# b.calibrate
 
 # Uncomment to use the main back tester in back_tester.rb, as before, uncomment the 2 set up lines
 # b.go
