@@ -3,6 +3,8 @@ require('./bot')
 
 class BackTester
 
+	# these are suggested variables you can test on coin pairs using calibrate
+	# coin_array is the coin history you include when you intialize the class in main.rb
 	def initialize(coin_array: [])
 		@trading_fee = 0.0005
 		@percentage_to_buy_with = 0.01
@@ -14,6 +16,10 @@ class BackTester
 		@coin_array = coin_array
 	end
 
+	# this is an example of calibrating a variable, here I am calibrating @sell_zone
+	# I start at 65 (in the initiliazer) and then increment the sell zone by 1 and see if the
+	# new ammount is greater than the last, I log to the console which sell zone is the best
+	# at the end
 	def calibrate
 		increase = 0
 		sell_zone = @sell_zone
@@ -30,8 +36,8 @@ class BackTester
 	end
 
 	def go
-		# starting ven
-		ven_amount = 0
+		# starting coin
+		coin_amount = 0
 
 		# starting eth
 		eth_amount = 1
@@ -39,25 +45,31 @@ class BackTester
 		# going to buy with 10% of the amount of eth left
 		eth_trading_chunks = eth_amount * @percentage_to_buy_with
 
-		# Grab all VenEth, ordered from smallest opening_time(integer)
-		venEthArray = @coin_array
+		# Grab all CoinEth, ordered from smallest opening_time(integer)
+		coinEthArray = @coin_array
 
+		# used to maximize profits by selling at a price point
 		recently_bought = false
 		recently_bought_price = 0.0
 		recently_bought_index = 1
 
+		# used to report daily % increases
 		daily_increases = []
 		last_day_amount = 0
 
-		venEthArray.each_with_index do |ven_eth, index|
+		coinEthArray.each_with_index do |ven_eth, index|
+			coin_trading_chunks = coin_amount * @percentage_to_sell_with
 			# starting at 34 because that's how much price data I need to use the indicators
-			ven_trading_chunks = ven_amount * @percentage_to_sell_with
 			if index > 34
-				price_history = venEthArray[0, index + 1].map { |eth| eth.closing_price }
+				# array of just prices
+				price_history = coinEthArray[0, index + 1].map { |coin| coin.closing_price }
 
+				# chop to length of 250, optimization
 				if price_history.count > 251
 					price_history = price_history[index - 250, index]
 				end
+
+				# initialize algorithm to determine buy or sell
 				algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
 				
 				if algorithm.analyze == "buy"
@@ -69,45 +81,33 @@ class BackTester
 
 						# amount of ven I'm gaining = amount of eth I'm buying with / price all times 0.0095 which is the amount with the fee taken out
 						new_ven = (eth_trading_chunks / ven_eth[:closing_price]).ceil * (1 - @trading_fee)
-						ven_amount += new_ven
+						coin_amount += new_ven
+
+						# keep track that I recently bought so I can sell at a high price
 						recently_bought = true
 						recently_bought_price = ven_eth[:closing_price]
-						puts "New Fun Amount: #{ven_amount}, Price: #{ven_amount * ven_eth[:closing_price]}, Index: #{index}"
+						puts "New Fun Amount: #{coin_amount}, Price: #{coin_amount * ven_eth[:closing_price]}, Index: #{index}"
 					else
 						puts "Ran out of Eth"
 					end
 				elsif recently_bought
+					# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
 					if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
 						recently_bought = false
-						sell_amount = ven_amount.floor * ven_eth[:closing_price]
+						sell_amount = coin_amount.floor * ven_eth[:closing_price]
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
 						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
-					end
-					# elsif index - recently_bought_index > 5
-					# 	if ven_eth[:closing_price] < recently_bought_price * @stop_loss_percentage
-					# 		# "withdraw" the ven I'm selling
-					# 		ven_amount = ven_amount - ven_trading_chunks.floor
-
-					# 		# price of ven I'm selling in terms of eth
-					# 		sell_amount = ven_trading_chunks.floor * ven_eth[:closing_price]
-
-					# 		# take out the fee
-					# 		new_eth = sell_amount * (1 - @trading_fee)
-					# 		eth_amount += new_eth
-					# 		recently_bought = false
-					# 		puts "New Eth Amount(stopping loss): #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
-					# 	end
-					# end				
+					end			
 				elsif algorithm.analyze == "sell"
 					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
-					if ven_amount - ven_trading_chunks.floor > 0
+					if coin_amount - coin_trading_chunks.floor > 0
 
 						# "withdraw" the ven I'm selling
-						ven_amount = ven_amount - ven_trading_chunks.floor
+						coin_amount = coin_amount - coin_trading_chunks.floor
 
 						# price of ven I'm selling in terms of eth
-						sell_amount = ven_trading_chunks.floor * ven_eth[:closing_price]
+						sell_amount = coin_trading_chunks.floor * ven_eth[:closing_price]
 
 						# take out the fee
 						new_eth = sell_amount * (1 - @trading_fee)
@@ -119,9 +119,10 @@ class BackTester
 					end
 				end
 			end
+			# used to calculate daily increase %
 			if index % 288 == 0
 				if last_day_amount != 0
-					total_eth_amount = eth_amount + (ven_amount * ven_eth[:closing_price])
+					total_eth_amount = eth_amount + (coin_amount * ven_eth[:closing_price])
 					if total_eth_amount - last_day_amount != 0
 						change_in_eth = (total_eth_amount - last_day_amount).to_f / last_day_amount
 						daily_increases.push(change_in_eth)
@@ -132,7 +133,7 @@ class BackTester
 				end
 			end
 		end
-		puts "Ven Amount = #{ven_amount}, Price in Eth = #{ven_amount * venEthArray.last[:closing_price]}"
+		puts "Ven Amount = #{coin_amount}, Price in Eth = #{coin_amount * coinEthArray.last[:closing_price]}"
 		puts "Eth Amount = #{eth_amount}}"
 		total = 0
 		daily_increases.each do |d|
@@ -141,7 +142,7 @@ class BackTester
 		if daily_increases.count > 0
 			puts "Increase/Decrease = #{(total / daily_increases.count) * 100}%"
 		end
-		full_amount = eth_amount + (ven_amount * venEthArray.last[:closing_price])
+		full_amount = eth_amount + (coin_amount * coinEthArray.last[:closing_price])
 		full_amount
 		
 	end

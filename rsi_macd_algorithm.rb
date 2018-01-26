@@ -15,17 +15,8 @@ class RsiMacdAlgorithm
 	end
 
 	def analyze
-		# # going to sell 10% of my ven
-		# ven_trading_chunks = ven_amount * @percentage_to_sell_with
 
-		# # array of prices up to the index
-		# price_history = venEthArray[0, index + 1].map { |eth| eth.closing_price }
-
-		# # optomization, only going to calculate indicators with 500 points of price history
-		# if price_history.count > 251
-		# 	price_history = price_history[index - 250, index]
-		# end
-
+		# Initialize Indicator Class
 		data = Indicators::Data.new(@price_history)
 
 		# calculate rsi
@@ -39,42 +30,9 @@ class RsiMacdAlgorithm
 
 		# test to see if rsi went to the buy/sell zones and a macd cross
 		if macd_recently_crossed?(macdArray) && rsiAlert[:crossed]
-
-			# rsi > 70
 			if rsiAlert[:buy]
-				# make sure I have enough eth to buy with
-				# if eth_amount - eth_trading_chunks > 0
-
-				# 	# "withdraw" the eth that I'm buying with
-				# 	eth_amount = eth_amount - eth_trading_chunks
-
-				# 	# amount of ven I'm gaining = amount of eth I'm buying with / price all times 0.0095 which is the amount with the fee taken out
-				# 	new_ven = (eth_trading_chunks / ven_eth[:closing_price]) * (1 - @trading_fee)
-				# 	ven_amount += new_ven
-				# 	recently_bought = true
-				# 	recently_bought_price = ven_eth[:closing_price]
-				# else
-				# 	puts "Ran out of Eth"
-				# end
 				return "buy"
-			# rsi < 30
 			elsif rsiAlert[:sell]
-				# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
-				# if ven_amount - ven_trading_chunks > 0
-
-				# 	# "withdraw" the ven I'm selling
-				# 	ven_amount = ven_amount - ven_trading_chunks
-
-				# 	# price of ven I'm selling in terms of eth
-				# 	sell_amount = ven_trading_chunks * ven_eth[:closing_price]
-
-				# 	# take out the fee
-				# 	new_eth = sell_amount * (1 - @trading_fee)
-				# 	eth_amount += new_eth
-				# 	puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price]}, Index: #{index}"
-				# else
-				# 	puts "Ran out of VEN"
-				# end
 				return "sell"
 			end
 		else
@@ -111,14 +69,15 @@ class RsiMacdAlgorithm
 	# just simply calculating whether or not the last 4 rsi numbers crossed into either threshold
 	# rsi will always cross before macd which is why I test a few places backwards
 	def rsi_recently_crossed_threshold?(rsiArray)
-		# set in initializer now
-		# @tolerance = 1
 		crossed = false
 		buy = false
 		sell = false
 		last_index = rsiArray.count - 1
 		buyRsiToInspect = []
 		sellRsiToInspect = []
+
+		# Inspect the last indexes in rsiArray(up to @tolerance) to see if they crossed the
+		# buy and sell zones
 		rsiArray[(last_index - @rsiTolerance)..last_index].each do |rsi|
 			if rsi >= @sell_zone
 				crossed = true
@@ -130,8 +89,10 @@ class RsiMacdAlgorithm
 				buyRsiToInspect.push(rsi)
 			end
 		end
+		# Inspects the 1st and Last Index of the array and sees which way it's trending
 		if buy
 			if buyRsiToInspect.count > 1
+				# is it trending up? Then buy
 				if buyRsiToInspect[0] > buyRsiToInspect[(buyRsiToInspect.count - 1)]
 					{ crossed: crossed, sell: false, buy: true }
 				else
@@ -142,6 +103,7 @@ class RsiMacdAlgorithm
 			end
 		elsif sell
 			if sellRsiToInspect.count > 1
+				# is it trending down? Then sell
 				if sellRsiToInspect[0] < sellRsiToInspect[(sellRsiToInspect.count - 1)]
 					{ crossed: crossed, sell: true, buy: false }
 				else
