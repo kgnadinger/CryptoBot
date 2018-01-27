@@ -296,7 +296,7 @@ class BinanceBot
 
 			  			# check we have enough coin to sell
 			  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
-				  		if fun > 0
+				  		if fun_amount > 0
 
 			  				# sell
 			  				create_order("FUNETH", "sell", "MARKET", fun_amount)
