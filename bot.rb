@@ -144,7 +144,7 @@ class BinanceBot
 										 closing_time: raw_price[:close_time],
 										 updated_at: DateTime.now)
 				else 
-					wtc_eth = VenEth.new(opening_time: raw_price[:open_time], 
+					wtc_eth = WtcEth.new(opening_time: raw_price[:open_time], 
 										 closing_price: raw_price[:close_price], 
 										 closing_time: raw_price[:close_time],
 										 created_at: DateTime.now,
@@ -184,7 +184,7 @@ class BinanceBot
 		  			fun_history = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
 		  			price_history = fun_history.map { |f| f.closing_price }
 		  		elsif hash[:s] == "TRXETH"
-		  			puts "FUNETH"
+		  			puts "TRXETH"
 		  			# add new TrxEth to database
 			  		trx_eth = TrxEth.where(opening_time: hash[:k][:t])
 			  		if trx_eth && trx_eth.first
@@ -233,7 +233,7 @@ class BinanceBot
 											 closing_time: hash[:k][:T],
 											 updated_at: DateTime.now)
 			  		else
-			  			wtc_eth = VenEth.new(opening_time: hash[:k][:t], 
+			  			wtc_eth = WtcEth.new(opening_time: hash[:k][:t], 
 											 closing_price: hash[:k][:c], 
 											 closing_time: hash[:k][:T],
 											 updated_at: DateTime.now,
