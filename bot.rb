@@ -302,7 +302,9 @@ class BinanceBot
 			  				create_order("FUNETH", "sell", "MARKET", fun_amount)
 
 			  				# update setting
-			  				FunSetting.last.update(recently_bought: false)
+			  				if !FunSetting.last.nil?
+			  					FunSetting.last.update(recently_bought: false)
+			  				end
 
 			  				# text to alert that we sold
 			  				mailer = Mailer.new
@@ -364,7 +366,9 @@ class BinanceBot
 			  				create_order("TRXETH", "sell", "MARKET", trx_amount)
 
 			  				# update settings
-			  				TrxSetting.last.update(recently_bought: false)
+			  				if !TrxSetting.last.nil?
+			  					TrxSetting.last.update(recently_bought: false)
+			  				end
 
 			  				# text to alert that we sold
 			  				mailer = Mailer.new
@@ -421,7 +425,9 @@ class BinanceBot
 			  			# check we have enough coin to sell
 			  			if getAmount("VEN").to_f > 0
 			  				# create_order("VENETH", "sell", "MARKET", 2)
-			  				VenSetting.last.update(recently_bought: false)
+			  				if !VenSetting.last.nil?
+			  					VenSetting.last.update(recently_bought: false)
+			  				end
 
 			  				# text to alert that we sold
 			  				mailer = Mailer.new
@@ -468,7 +474,9 @@ class BinanceBot
 				  				create_order("WTCETH", "sell", "MARKET", wtc_amount)
 
 				  				# update setting
-				  				WtcSetting.last.update(recently_bought: false)
+				  				if !WtcSetting.last.nil?
+				  					WtcSetting.last.update(recently_bought: false)
+				  				end
 
 				  				# text to alert that we sold
 				  				mailer = Mailer.new
