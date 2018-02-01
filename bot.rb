@@ -3,6 +3,7 @@ require('indicators')
 require('./secrets')
 require 'eventmachine'
 require('./rsi_macd_algorithm')
+require('./rsi_algorithm')
 require './mailer'
 
 class BinanceBot
@@ -73,7 +74,162 @@ class BinanceBot
 	end
 
 	def test_stream
-		puts "Implimant test stream"
+		trying_to_buy = false
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.03
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	# Download recent prices for trading pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("FUNETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				fun_eth = FunEth.where(opening_time: raw_price[:open_time])
+				if fun_eth && fun_eth.first
+					fun_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					fun_eth = FunEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					fun_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	puts hash
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			if getAmount("ETH").to_f > 0
+		  				puts "**** Buying FUNETH @ #{closing_price} *****"
+		  				# create a buy order
+		  				create_order("FUNETH", "buy", "MARKET", 2)
+
+		  				# log to database that we bought and its price
+		  				f = FunSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying FUNETH")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price < sell_floor
+		  			trying_to_sell = false
+		  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
+			  		if fun_amount > 0
+		  				# sell
+		  				create_order("FUNETH", "sell", "MARKET", fun_amount)
+
+		  				puts "**** Selling FUNETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling FUNETH")
+		  			else
+		  				"Out of FUN"
+		  			end
+		  			# update setting
+		  			FunSetting.last.update(recently_bought: false)
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "FUNETH"
+		  			puts "FUNETH"
+		  			# add new FunEth to database
+			  		fun_eth = FunEth.where(opening_time: hash[:k][:t])
+			  		if fun_eth && fun_eth.first
+			  			fun_eth.first.update(opening_time: hash[:k][:t], 
+											 closing_price: hash[:k][:c], 
+											 closing_time: hash[:k][:T],
+											 updated_at: DateTime.now)
+			  		else
+			  			fun_eth = FunEth.new(opening_time: hash[:k][:t], 
+											 closing_price: hash[:k][:c], 
+											 closing_time: hash[:k][:T],
+											 updated_at: DateTime.now,
+											 created_at: DateTime.now)
+			  			fun_eth.save
+			  		end
+			  		# Grab last 500 FunEth prices
+		  			fun_history = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = fun_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		if hash[:s] == "FUNETH"
+			  		if signal == "buy"
+			  			puts "****Buying FUNETH****"
+			  			trying_to_buy = true
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !FunSetting.last.nil? && FunSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > FunSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell"
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { puts 'closed' }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'FUNETH', interval: '5m'}],
+		               methods: methods 
+		end
 	end
 
 	# main bot method for live trading
@@ -246,7 +402,7 @@ class BinanceBot
 		  		end
 
 		  		# Initialize algorithm
-		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 15, price_history: price_history, buy_zone: 32, sell_zone: 67
+		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 33, sell_zone: 67
 		  		signal = algorithm.analyze # buy, sell or wait
 		  		if hash[:s] == "FUNETH"
 			  		if signal == "buy"
@@ -278,7 +434,7 @@ class BinanceBot
 
 				  			# check we have enough coin to sell
 				  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
-				  			if fun > 0
+				  			if fun_amount > 0
 
 				  				# sell
 				  				create_order("FUNETH", "sell", "MARKET", fun_amount)
@@ -445,6 +601,7 @@ class BinanceBot
 			  			if eth_amount > 0
 
 			  				wtc_amount = eth_amount / hash[:k][:c].to_f
+			  				puts "WTF Amount: #{wtc_amount}"
 			  				# create a buy order
 			  				create_order("WTCETH", "buy", "MARKET", wtc_amount)
 

@@ -11,9 +11,10 @@ class BackTester
 		@trading_fee = 0.0005
 		@percentage_to_buy_with = 0.01
 		@percentage_to_sell_with = 0.25
-		@sell_zone = 67
-		@buy_zone = 32
-		@price_multiplier = 1.5
+		@sell_zone = 70
+		@buy_zone = 30
+		@price_multiplier = 1.13
+		@trading_range = 0.08
 		@coin_array = coin_array
 	end
 
@@ -65,6 +66,14 @@ class BackTester
 		buy_y_values = []
 		sell_y_values = []
 
+		trying_to_buy = false
+		buy_limit = 0.0
+		buy_ceiling = 0.0
+
+		trying_to_sell = false
+		sell_limit = 0.0
+		sell_floor = 0.0
+
 		coinEthArray.each_with_index do |ven_eth, index|
 			coin_trading_chunks = coin_amount * @percentage_to_sell_with
 			# starting at 34 because that's how much price data I need to use the indicators
@@ -78,12 +87,11 @@ class BackTester
 				end
 
 				# initialize algorithm to determine buy or sell
-				algorithm = RsiMacdAlgorithm.new rsiTolerance: 15, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
+				algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
 				signal = algorithm.analyze
-				
-				if signal == "buy"
-					# make sure I have enough eth to buy with
-					if eth_amount - eth_trading_chunks > 0
+
+				if trying_to_buy
+					if ven_eth[:closing_price] > buy_ceiling
 						buy_x_values.push(index)
 						buy_y_values.push(price_history.last)
 
@@ -97,38 +105,25 @@ class BackTester
 						# keep track that I recently bought so I can sell at a high price
 						recently_bought = true
 						recently_bought_price = ven_eth[:closing_price]
+						trying_to_buy = false
 						puts "New Fun Amount: #{coin_amount}, Price: #{coin_amount * ven_eth[:closing_price].round(10)}, Index: #{index}"
-					else
-						puts "Ran out of Eth"
-					end
-				elsif recently_bought
-					# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
-					if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
-						sell_x_values.push(index)
-						sell_y_values.push(price_history.last)
-						# "withdraw" the ven I'm selling
-						coin_amount = coin_amount - coin_trading_chunks.floor
-
-						# price of ven I'm selling in terms of eth
-						sell_amount = coin_trading_chunks.floor * ven_eth[:closing_price]
-
-						# take out the fee
-						new_eth = sell_amount * (1 - @trading_fee)
-						eth_amount += new_eth
-						recently_bought = false
-						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
+					elsif ven_eth[:closing_price] < buy_limit
+						buy_ceiling = ven_eth[:closing_price] * (1 + (@trading_range / 2.0))
+						buy_limit = ven_eth[:closing_price] * (1 - (@trading_range / 2.0))
+						if price_history.last
+							x_values.push(index)
+							y_values.push(price_history.last)
+						end
 					else
 						if price_history.last
 							x_values.push(index)
 							y_values.push(price_history.last)
 						end
 					end
-				elsif signal == "sell"
-					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
-					if coin_amount - coin_trading_chunks.floor > 0
+				elsif trying_to_sell
+					if ven_eth[:closing_price] < sell_floor
 						sell_x_values.push(index)
 						sell_y_values.push(price_history.last)
-
 						# "withdraw" the ven I'm selling
 						coin_amount = coin_amount - coin_trading_chunks.floor
 
@@ -139,7 +134,48 @@ class BackTester
 						new_eth = sell_amount * (1 - @trading_fee)
 						eth_amount += new_eth
 						recently_bought = false
-						puts "New Eth Amount: #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
+						trying_to_sell = false
+						puts "New Eth Amount(protecting profits): #{eth_amount}, Price: #{ven_eth[:closing_price].round(10)}, Index: #{index}"
+					elsif ven_eth[:closing_price] > sell_limit
+						sell_floor = ven_eth[:closing_price] * (1 - (@trading_range / 2.0))
+						sell_limit = ven_eth[:closing_price] * (1 + (@trading_range / 2.0))
+						if price_history.last
+							x_values.push(index)
+							y_values.push(price_history.last)
+						end
+					else
+						if price_history.last
+							x_values.push(index)
+							y_values.push(price_history.last)
+						end
+					end
+				elsif signal == "buy"
+					# make sure I have enough eth to buy with
+					if eth_amount - eth_trading_chunks > 0
+						trying_to_buy = true
+						buy_ceiling = ven_eth[:closing_price]
+						buy_limit = ven_eth[:closing_price] * (1 - @trading_range)						
+					else
+						puts "Ran out of Eth"
+					end
+				# elsif recently_bought
+				# 	# sell if the price reaches the recently bought price multiplied up (usually 1.1 - 1.5 or 10% - 50% higher)
+				# 	if ven_eth[:closing_price] > recently_bought_price * @price_multiplier
+				# 		trying_to_sell = true
+				# 		sell_floor = ven_eth[:closing_price]
+				# 		sell_limit = ven_eth[:closing_price] * (1 + @trading_range)
+				# 	else
+				# 		if price_history.last
+				# 			x_values.push(index)
+				# 			y_values.push(price_history.last)
+				# 		end
+				# 	end
+				elsif signal == "sell"
+					# puts "Selling - RSI: buy: #{rsiAlert[:buy]}, sell: #{rsiAlert[:sell]}"
+					if coin_amount - coin_trading_chunks.floor > 0
+						trying_to_sell = true
+						sell_floor = ven_eth[:closing_price]
+						sell_limit = ven_eth[:closing_price] * (1 + @trading_range)
 					else
 						puts "Ran out of VEN"
 					end
@@ -174,13 +210,14 @@ class BackTester
 			puts "Increase/Decrease = #{(total / daily_increases.count) * 100}%"
 		end
 		full_amount = eth_amount + (coin_amount * coinEthArray.last[:closing_price])
+		puts "Full Eth Amount = #{full_amount}}"
 
 		g = Gruff::Scatter.new(size=2000)
-		g.circle_radius = 1
+		g.circle_radius = 3
 		g.title = "Test"
 		g.data(:price, x_values, y_values)
-		g.data(:buy, buy_x_values, buy_y_values)
-		g.data(:sell, sell_x_values, sell_y_values)
+		g.data(:buy, buy_x_values, buy_y_values) unless buy_x_values.count == 0
+		g.data(:sell, sell_x_values, sell_y_values) unless sell_x_values.count == 0
 		g.write('test.png')
 		full_amount
 		
