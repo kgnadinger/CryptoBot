@@ -118,7 +118,7 @@ class RsiAlgorithm
 		end
 
 		if buy
-			if buyRsiToInspect.count > 3
+			if buyRsiToInspect.count > 5
 				# is it trending up? Then buy
 				xs = (1..buyRsiToInspect.count).map { |n| n }
 				quad_regression_sign = regress(xs, buyRsiToInspect, 2).last
@@ -133,7 +133,7 @@ class RsiAlgorithm
 				{ crossed: true, sell: false, buy: false }
 			end
 		elsif sell
-			if sellRsiToInspect.count > 3
+			if sellRsiToInspect.count > 5
 				# is it trending down? Then sell
 				# average_slope = average_slope_of_array(sellRsiToInspect)
 				xs = (1..sellRsiToInspect.count).map { |n| n }

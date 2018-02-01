@@ -82,7 +82,7 @@ class BinanceBot
 		sell_floor = 0.0
 		sell_limit = 0.0
 
-		trade_range = 0.03
+		trade_range = 0.01
 		client = Binance::Client::WebSocket.new
 		EM.run do
 		  # Create event handlers
@@ -213,7 +213,7 @@ class BinanceBot
 			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
 			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 				  		end
-			  		elsif signal == "sell" && !(!TrxSetting.last.nil? && (DateTime.now.to_time - TrxSetting.last.trade_time.to_time > time_between_trades))
+			  		elsif signal == "sell" && !(!TrxSetting.last.nil? && (DateTime.now.to_time - TrxSetting.last.trade_time.to_time < time_between_trades))
 			  			puts "****Selling****"
 			  			trying_to_sell = true
 			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
@@ -252,7 +252,7 @@ class BinanceBot
 		sell_floor = 0.0
 		sell_limit = 0.0
 
-		trade_range = 0.05
+		trade_range = 0.03
 		client = Binance::Client::WebSocket.new
 		EM.run do
 		  # Create event handlers
@@ -382,7 +382,7 @@ class BinanceBot
 			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
 			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 				  		end
-			  		elsif signal == "sell" && !(!VenSetting.last.nil? && (DateTime.now.to_time - VenSetting.last.trade_time.to_time > time_between_trades))
+			  		elsif signal == "sell" && !(!VenSetting.last.nil? && (DateTime.now.to_time - VenSetting.last.trade_time.to_time < time_between_trades))
 			  			puts "****Selling****"
 			  			trying_to_sell = true
 			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
@@ -423,7 +423,7 @@ class BinanceBot
 		sell_floor = 0.0
 		sell_limit = 0.0
 
-		trade_range = 0.05
+		trade_range = 0.03
 		client = Binance::Client::WebSocket.new
 		EM.run do
 		  # Create event handlers
@@ -552,7 +552,7 @@ class BinanceBot
 			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
 			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 				  		end
-			  		elsif signal == "sell" && !(!WtcSetting.last.nil? && (DateTime.now.to_time - WtcSetting.last.trade_time.to_time > time_between_trades))
+			  		elsif signal == "sell" && !(!WtcSetting.last.nil? && (DateTime.now.to_time - WtcSetting.last.trade_time.to_time < time_between_trades))
 			  			puts "****Selling****"
 			  			trying_to_sell = true
 			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
@@ -591,7 +591,7 @@ class BinanceBot
 		sell_floor = 0.0
 		sell_limit = 0.0
 
-		trade_range = 0.03
+		trade_range = 0.01
 		client = Binance::Client::WebSocket.new
 		EM.run do
 		  # Create event handlers
@@ -722,7 +722,7 @@ class BinanceBot
 			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
 			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 				  		end
-			  		elsif signal == "sell" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time > time_between_trades))
+			  		elsif signal == "sell" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time < time_between_trades))
 			  			puts "****Selling****"
 			  			trying_to_sell = true
 			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
