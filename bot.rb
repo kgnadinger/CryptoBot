@@ -73,7 +73,7 @@ class BinanceBot
 		balance
 	end
 
-	def test_stream
+	def trx_stream
 		trying_to_buy = false
 		buy_ceiling = 0.0
 		buy_limit = 0.0
@@ -88,7 +88,516 @@ class BinanceBot
 		  # Create event handlers
 		  open    = proc { 
 		  	puts 'connected' 
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("TRXETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				trx_eth = TrxEth.where(opening_time: raw_price[:open_time])
+				if trx_eth && trx_eth.first
+					trx_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					trx_eth = TrxEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					trx_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	if hash[:k][:x]
+		  		trx_eth = TrxEth.where(opening_time: hash[:k][:t])
+		  		if trx_eth && trx_eth.first
+		  			trx_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			trx_eth = TrxEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			trx_eth.save
+		  		end
+		  		# Grab last 500 TrxEth prices
+	  			trx_history = TrxEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+	  			price_history = trx_history.map { |f| f.closing_price }
+		  	end
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			eth_amount = getAmount("ETH").to_f * 0.003
+		  			if eth_amount > 0
+		  				puts "**** Buying TRXETH @ #{closing_price} *****"
+
+		  				trx_amount = (eth_amount / closing_price).ceil
+		  				# create a buy order
+		  				create_order("TRXETH", "buy", "MARKET", trx_amount)
+
+		  				# log to database that we bought and its price
+		  				f = TrxSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying TRXETH")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price < sell_floor
+		  			trying_to_sell = false
+		  			trx_amount = (getAmount("TRX").to_f * 0.5).ceil
+			  		if trx_amount > 0
+		  				# sell
+		  				create_order("TRXETH", "sell", "MARKET", trx_amount)
+
+		  				puts "**** Selling TRXETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling TRXETH")
+		  			else
+		  				"Out of TRX"
+		  			end
+		  			# update setting
+		  			TrxSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k][:x]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "TRXETH"
+		  			puts "TRXETH"
+			  		# Grab last 500 FunEth prices
+		  			trx_history = TrxEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = trx_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		time_between_trades = 60 * 30
+		  		if hash[:s] == "TRXETH"
+			  		if signal == "buy" && !(!TrxSetting.last.nil? && (DateTime.now.to_time - TrxSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Buying TRXETH****"
+			  			trying_to_buy = true
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !TrxSetting.last.nil? && TrxSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > TrxSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell" && !(!TrxSetting.last.nil? && (DateTime.now.to_time - TrxSetting.last.trade_time.to_time > time_between_trades))
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "TRX Closed")
+		  }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'TRXETH', interval: '5m'}],
+		               methods: methods 
+		end
+	end
+
+	def ven_stream
+		trying_to_buy = false
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.05
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("VENETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				ven_eth = VenEth.where(opening_time: raw_price[:open_time])
+				if ven_eth && ven_eth.first
+					ven_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					ven_eth = VenEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					ven_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	if hash[:k][:x]
+		  		ven_eth = VenEth.where(opening_time: hash[:k][:t])
+		  		if ven_eth && ven_eth.first
+		  			ven_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			ven_eth = VenEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			ven_eth.save
+		  		end
+		  		# Grab last 500 VenEth prices
+	  			fun_history = VenEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+	  			price_history = fun_history.map { |f| f.closing_price }
+		  	end
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			eth_amount = getAmount("ETH").to_f * 0.01
+		  			if eth_amount > 0
+		  				puts "**** Buying VENETH @ #{closing_price} *****"
+
+		  				# create a buy order
+		  				create_order("VENETH", "buy", "MARKET", 2)
+
+		  				# log to database that we bought and its price
+		  				f = VenSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying VENETH")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price < sell_floor
+		  			trying_to_sell = false
+		  			ven_amount = (getAmount("VEN").to_f * 0.5).ceil
+			  		if ven_amount > 0
+		  				# sell
+		  				create_order("VENETH", "sell", "MARKET", ven_amount)
+
+		  				puts "**** Selling VENETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling VENETH")
+		  			else
+		  				"Out of VEN"
+		  			end
+		  			# update setting
+		  			VenSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k][:x]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "VENETH"
+		  			puts "VENETH"
+			  		# Grab last 500 VenEth prices
+		  			ven_history = VenEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = ven_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		time_between_trades = 60 * 30
+		  		if hash[:s] == "VENETH"
+			  		if signal == "buy" && !(!VenSetting.last.nil? && (DateTime.now.to_time - VenSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Buying VENETH****"
+			  			trying_to_buy = true
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !VenSetting.last.nil? && VenSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > VenSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell" && !(!VenSetting.last.nil? && (DateTime.now.to_time - VenSetting.last.trade_time.to_time > time_between_trades))
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "VEN Closed")
+		  }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'VENETH', interval: '5m'}],
+		               methods: methods 
+		end
+	end
+
+
+
+	def wtc_stream
+		trying_to_buy = false
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.05
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
 		  	# Download recent prices for trading pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("WTCETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				wtc_eth = WtcEth.where(opening_time: raw_price[:open_time])
+				if wtc_eth && wtc_eth.first
+					wtc_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					wtc_eth = WtcEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					wtc_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	if hash[:k][:x]
+		  		wtc_eth = WtcEth.where(opening_time: hash[:k][:t])
+		  		if wtc_eth && wtc_eth.first
+		  			wtc_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			wtc_eth = WtcEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			wtc_eth.save
+		  		end
+		  		# Grab last 500 WtcEth prices
+	  			fun_history = WtcEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+	  			price_history = fun_history.map { |f| f.closing_price }
+		  	end
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			eth_amount = getAmount("ETH").to_f * 0.01
+		  			if eth_amount > 0
+		  				puts "**** Buying WTCETH @ #{closing_price} *****"
+		  				# create a buy order
+		  				create_order("WTCETH", "buy", "MARKET", 2)
+
+		  				# log to database that we bought and its price
+		  				f = WtcSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying WTCETH")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price < sell_floor
+		  			trying_to_sell = false
+		  			wtc_amount = (getAmount("WTC").to_f * 0.5).round(2)
+			  		if wtc_amount > 0
+		  				# sell
+		  				create_order("WTCETH", "sell", "MARKET", wtc_amount)
+
+		  				puts "**** Selling WTCETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling WTCETH")
+		  			else
+		  				"Out of WTC"
+		  			end
+		  			# update setting
+		  			WtcSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k][:x]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "WTCETH"
+		  			puts "WTCETH"
+			  		# Grab last 500 WtcEth prices
+		  			wtc_history = WtcEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = wtc_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		time_between_trades = 60 * 30
+		  		if hash[:s] == "WTCETH"
+			  		if signal == "buy" && !(!WtcSetting.last.nil? && (DateTime.now.to_time - WtcSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Buying WTCETH****"
+			  			trying_to_buy = true
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !WtcSetting.last.nil? && WtcSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > WtcSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell" && !(!WtcSetting.last.nil? && (DateTime.now.to_time - WtcSetting.last.trade_time.to_time > time_between_trades))
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "WTC Closed")
+		  }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'WTCETH', interval: '5m'}],
+		               methods: methods 
+		end
+	end
+
+	def fun_stream
+		trying_to_buy = false
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.03
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
 		  	raw_price_history = price_history("FUNETH", '5m', 500)
 	  		raw_price_history.each do |raw_price|
 				fun_eth = FunEth.where(opening_time: raw_price[:open_time])
@@ -136,10 +645,13 @@ class BinanceBot
 		  		if closing_price > buy_ceiling
 		  			trying_to_buy = false
 		  			# make sure we have enough ETH to buy
-		  			if getAmount("ETH").to_f > 0
+		  			eth_amount = getAmount("ETH").to_f * 0.003
+		  			if eth_amount > 0
 		  				puts "**** Buying FUNETH @ #{closing_price} *****"
+
+		  				fun_amount = (eth_amount / closing_price).ceil
 		  				# create a buy order
-		  				create_order("FUNETH", "buy", "MARKET", 2)
+		  				create_order("FUNETH", "buy", "MARKET", fun_amount)
 
 		  				# log to database that we bought and its price
 		  				f = FunSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
@@ -161,7 +673,7 @@ class BinanceBot
 		  		closing_price = hash[:k][:c].to_f
 		  		if closing_price < sell_floor
 		  			trying_to_sell = false
-		  			fun_amount = (getAmount("FUN").to_f * 0.25).ceil
+		  			fun_amount = (getAmount("FUN").to_f * 0.5).ceil
 			  		if fun_amount > 0
 		  				# sell
 		  				create_order("FUNETH", "sell", "MARKET", fun_amount)
@@ -175,7 +687,7 @@ class BinanceBot
 		  				"Out of FUN"
 		  			end
 		  			# update setting
-		  			FunSetting.last.update(recently_bought: false, trading_time: DateTime.now)
+		  			FunSetting.last.update(recently_bought: false, trade_time: DateTime.now)
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
@@ -196,7 +708,7 @@ class BinanceBot
 		  		signal = algorithm.analyze # buy, sell or wait
 		  		time_between_trades = 60 * 60
 		  		if hash[:s] == "FUNETH"
-			  		if signal == "buy" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trading_time.to_time < time_between_trades))
+			  		if signal == "buy" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time < time_between_trades))
 			  			puts "****Buying FUNETH****"
 			  			trying_to_buy = true
 		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
@@ -210,7 +722,7 @@ class BinanceBot
 			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
 			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 				  		end
-			  		elsif signal == "sell" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trading_time.to_time > time_between_trades))
+			  		elsif signal == "sell" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time > time_between_trades))
 			  			puts "****Selling****"
 			  			trying_to_sell = true
 			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
@@ -226,7 +738,11 @@ class BinanceBot
 		  	
 		  }
 		  error   = proc { |e| puts e }
-		  close   = proc { puts 'closed' }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "WTC Closed")
+		  }
 
 		  # Bundle our event handlers into Hash
 		  methods = { open: open, message: message, error: error, close: close }
@@ -236,14 +752,14 @@ class BinanceBot
 		end
 	end
 
-	# main bot method for live trading
+	# main bot method for live trade
 	def stream
 		client = Binance::Client::WebSocket.new
 		EM.run do
 		  # Create event handlers
 		  open    = proc { 
 		  	puts 'connected' 
-		  	# Download recent prices for trading pairs, this occurs at the beginning of the stream
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
 		  	raw_price_history = price_history("FUNETH", '5m', 500)
 	  		raw_price_history.each do |raw_price|
 				fun_eth = FunEth.where(opening_time: raw_price[:open_time])
