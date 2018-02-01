@@ -402,7 +402,7 @@ class BinanceBot
 		  		end
 
 		  		# Initialize algorithm
-		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 33, sell_zone: 67
+		  		algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
 		  		signal = algorithm.analyze # buy, sell or wait
 		  		if hash[:s] == "FUNETH"
 			  		if signal == "buy"
