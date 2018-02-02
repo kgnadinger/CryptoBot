@@ -52,7 +52,7 @@ bot = BinanceBot.new
 
 # Uncomment next 2 lines to initliaze BackTester which can be found in back_tester.rb
 # Replace WtcEth with coin pair of choice, replace number in limit() with how far back you want to go
-# coinEthArray = FunEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(5000).all.sort { |d,e| d.opening_time <=> e.opening_time }
+# coinEthArray = WtcEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(5000).all.sort { |d,e| d.opening_time <=> e.opening_time }
 # b = BackTester.new coin_array: coinEthArray
 
 # Uncoment to use the calibrate a variable in back_tester(with previous 2 lines uncommented)

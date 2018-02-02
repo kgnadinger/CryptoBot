@@ -106,11 +106,11 @@ class RsiAlgorithm
 		# buy and sell zones
 		rsiToInspect = rsiArray[(last_index - @rsiTolerance)..last_index]
 		rsiToInspect.each_with_index do |rsi, index|
-			if rsi >= @sell_zone #&& rsi_is_a_peak?(rsiToInspect, index)
+			if rsi >= @sell_zone && rsi_is_a_peak?(rsiToInspect, index)
 				crossed = true
 				sell = true
 				sellRsiToInspect.push(rsi)
-			elsif rsi <= @buy_zone #&& rsi_is_a_valley?(rsiToInspect, index)
+			elsif rsi <= @buy_zone && rsi_is_a_valley?(rsiToInspect, index)
 				buy = true
 				crossed = true
 				buyRsiToInspect.push(rsi)
@@ -118,13 +118,13 @@ class RsiAlgorithm
 		end
 
 		if buy
-			if buyRsiToInspect.count > 5
+			if buyRsiToInspect.count > 1
 				# is it trending up? Then buy
 				xs = (1..buyRsiToInspect.count).map { |n| n }
-				quad_regression_sign = regress(xs, buyRsiToInspect, 2).last
-				# linear_regression = Regression::Linear.new(xs, buyRsiToInspect)
-				# if linear_regression.slope < 0
-				if quad_regression_sign > 0
+				# quad_regression_sign = regress(xs, buyRsiToInspect, 2).last
+				linear_regression = Regression::Linear.new(xs, buyRsiToInspect)
+				if linear_regression.slope > 0
+				# if quad_regression_sign > 0
 					{ crossed: true, sell: false, buy: true }
 				else
 					{ crossed: true, sell: false, buy: false }
@@ -133,14 +133,14 @@ class RsiAlgorithm
 				{ crossed: true, sell: false, buy: false }
 			end
 		elsif sell
-			if sellRsiToInspect.count > 5
+			if sellRsiToInspect.count > 1
 				# is it trending down? Then sell
 				# average_slope = average_slope_of_array(sellRsiToInspect)
 				xs = (1..sellRsiToInspect.count).map { |n| n }
-				quad_regression_sign = regress(xs, sellRsiToInspect, 2).last
-				# linear_regression = Regression::Linear.new(xs, sellRsiToInspect)
-				if quad_regression_sign < 0
-				# if linear_regression.slope > 0
+				# quad_regression_sign = regress(xs, sellRsiToInspect, 2).last
+				linear_regression = Regression::Linear.new(xs, sellRsiToInspect)
+				# if quad_regression_sign < 0
+				if linear_regression.slope < 0
 					{ crossed: true, sell: true, buy: false }
 				else
 					{ crossed: true, sell: false, buy: false }

@@ -55,6 +55,9 @@ class BackTester
 		recently_bought_price = 0.0
 		recently_bought_index = 1
 
+		recently_sold = false
+		recently_sold_price = 0.0
+
 		# used to report daily % increases
 		daily_increases = []
 		last_day_amount = 0
@@ -87,7 +90,7 @@ class BackTester
 				end
 
 				# initialize algorithm to determine buy or sell
-				algorithm = RsiMacdAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
+				algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: @buy_zone, sell_zone: @sell_zone
 				signal = algorithm.analyze
 
 				if trying_to_buy

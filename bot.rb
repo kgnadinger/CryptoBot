@@ -233,6 +233,7 @@ class BinanceBot
 		  	puts 'closed' 
 		  	mailer = Mailer.new
 		  	mailer.send_text(text: "TRX Closed")
+		  	self.trx_stream
 		  }
 
 		  # Bundle our event handlers into Hash
@@ -402,6 +403,7 @@ class BinanceBot
 		  	puts 'closed' 
 		  	mailer = Mailer.new
 		  	mailer.send_text(text: "VEN Closed")
+		  	self.ven_stream
 		  }
 
 		  # Bundle our event handlers into Hash
@@ -572,6 +574,7 @@ class BinanceBot
 		  	puts 'closed' 
 		  	mailer = Mailer.new
 		  	mailer.send_text(text: "WTC Closed")
+		  	self.wtc_stream
 		  }
 
 		  # Bundle our event handlers into Hash
@@ -742,6 +745,7 @@ class BinanceBot
 		  	puts 'closed' 
 		  	mailer = Mailer.new
 		  	mailer.send_text(text: "WTC Closed")
+		  	self.fun_stream
 		  }
 
 		  # Bundle our event handlers into Hash
