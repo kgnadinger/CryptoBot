@@ -73,6 +73,179 @@ class BinanceBot
 		balance
 	end
 
+	def amb_stream
+		trying_to_buy = false
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.01
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("AMBETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				amb_eth = AmbEth.where(opening_time: raw_price[:open_time])
+				if amb_eth && amb_eth.first
+					amb_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					amb_eth = AmbEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					amb_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	if hash[:k][:x]
+		  		amb_eth = AmbEth.where(opening_time: hash[:k][:t])
+		  		if amb_eth && amb_eth.first
+		  			amb_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			amb_eth = AmbEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			amb_eth.save
+		  		end
+		  		# Grab last 500 AmbEth prices
+	  			amb_history = AmbEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+	  			price_history = amb_history.map { |f| f.closing_price }
+		  	end
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			eth_amount = getAmount("ETH").to_f * 0.003
+		  			if eth_amount > 0
+		  				puts "**** Buying AMBETH @ #{closing_price} *****"
+
+		  				amb_amount = (eth_amount / closing_price).ceil
+		  				# create a buy order
+		  				create_order("AMBETH", "buy", "MARKET", amb_amount)
+
+		  				# log to database that we bought and its price
+		  				f = AmbSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying AMBETH")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if closing_price < sell_floor
+		  			trying_to_sell = false
+		  			amb_amount = (getAmount("AMB").to_f * 0.75).ceil
+			  		if amb_amount > 0
+		  				# sell
+		  				create_order("AMBETH", "sell", "MARKET", amb_amount)
+
+		  				puts "**** Selling AMBETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling AMBETH")
+		  			else
+		  				"Out of AMB"
+		  			end
+		  			# update setting
+		  			if !AmbSetting.nil?
+		  				AmbSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k][:x]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "AMBETH"
+		  			puts "AMBETH"
+			  		# Grab last 500 FunEth prices
+		  			trx_history = TrxEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = trx_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		time_between_trades = 60 * 30
+		  		if hash[:s] == "AMBETH"
+			  		if signal == "buy" && !(!AmbSetting.last.nil? && (DateTime.now.to_time - AmbSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Buying AMBETH****"
+			  			trying_to_buy = true
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !AmbSetting.last.nil? && AmbSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > AmbSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell" && !(!AmbSetting.last.nil? && (DateTime.now.to_time - AmbSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "AMB Closed")
+		  	self.trx_stream
+		  }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'AMBETH', interval: '5m'}],
+		               methods: methods 
+		end
+	end
+
 	def trx_stream
 		trying_to_buy = false
 		buy_ceiling = 0.0
