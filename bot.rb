@@ -164,7 +164,7 @@ class BinanceBot
 		  		closing_price = hash[:k][:c].to_f
 		  		if closing_price < sell_floor
 		  			trying_to_sell = false
-		  			trx_amount = (getAmount("TRX").to_f * 0.5).ceil
+		  			trx_amount = (getAmount("TRX").to_f * 0.75).ceil
 			  		if trx_amount > 0
 		  				# sell
 		  				create_order("TRXETH", "sell", "MARKET", trx_amount)
@@ -307,12 +307,13 @@ class BinanceBot
 		  		if closing_price > buy_ceiling
 		  			trying_to_buy = false
 		  			# make sure we have enough ETH to buy
-		  			eth_amount = getAmount("ETH").to_f * 0.01
+		  			eth_amount = getAmount("ETH").to_f * 0.02
 		  			if eth_amount > 0
 		  				puts "**** Buying VENETH @ #{closing_price} *****"
 
+		  				ven_amount = (eth_amount / closing_price).ceil
 		  				# create a buy order
-		  				create_order("VENETH", "buy", "MARKET", 2)
+		  				create_order("VENETH", "buy", "MARKET", ven_amount)
 
 		  				# log to database that we bought and its price
 		  				f = VenSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
@@ -479,11 +480,12 @@ class BinanceBot
 		  		if closing_price > buy_ceiling
 		  			trying_to_buy = false
 		  			# make sure we have enough ETH to buy
-		  			eth_amount = getAmount("ETH").to_f * 0.01
+		  			eth_amount = getAmount("ETH").to_f * 0.02
 		  			if eth_amount > 0
 		  				puts "**** Buying WTCETH @ #{closing_price} *****"
+		  				wtc_amount = (eth_amount / closing_price).round(2)
 		  				# create a buy order
-		  				create_order("WTCETH", "buy", "MARKET", 2)
+		  				create_order("WTCETH", "buy", "MARKET", wtc_amount)
 
 		  				# log to database that we bought and its price
 		  				f = WtcSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
