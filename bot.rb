@@ -178,7 +178,9 @@ class BinanceBot
 		  				"Out of TRX"
 		  			end
 		  			# update setting
-		  			TrxSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			if !TrxSetting.nil?
+		  				TrxSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
@@ -349,7 +351,9 @@ class BinanceBot
 		  				"Out of VEN"
 		  			end
 		  			# update setting
-		  			VenSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			if !VenSetting.last.nil?
+		  				VenSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
@@ -521,7 +525,9 @@ class BinanceBot
 		  				"Out of WTC"
 		  			end
 		  			# update setting
-		  			WtcSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			if !WtcSetting.last.nil?
+		  				WtcSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
@@ -692,7 +698,9 @@ class BinanceBot
 		  				"Out of FUN"
 		  			end
 		  			# update setting
-		  			FunSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			if !FunSetting.last.nil?
+		  				FunSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
