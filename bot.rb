@@ -1087,7 +1087,7 @@ class BinanceBot
 		  			trying_to_sell = false
 		  		elsif closing_price < sell_floor
 		  			trying_to_sell = false
-		  			fun_amount = (getAmount("FUN").to_f * 0.5).ceil
+		  			fun_amount = (getAmount("FUN").to_f * 0.75).ceil
 			  		if fun_amount > 0
 		  				# sell
 		  				create_order("FUNETH", "sell", "MARKET", fun_amount)
@@ -1096,7 +1096,7 @@ class BinanceBot
 
 		  				# text to alert that we sold
 		  				mailer = Mailer.new
-		  				mailer.send_text(text: "Selling FUNETH")
+		  				mailer.send_text(text: "Selling FUNETH @ #{closing_price}")
 		  			else
 		  				"Out of FUN"
 		  			end
@@ -1125,11 +1125,11 @@ class BinanceBot
 		  		time_between_trades = 60 * 60
 		  		if hash[:s] == "FUNETH"
 			  		if signal == "buy" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time < time_between_trades))
-			  			puts "****Buying FUNETH****"
-			  			trying_to_buy = true
-			  			buy_start_time = DateTime.now.to_time
-		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
-		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  			# puts "****Buying FUNETH****"
+			  			# trying_to_buy = true
+			  			# buy_start_time = DateTime.now.to_time
+		  				# buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				# buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 			  		# Check if last setting exists and that recently bought is true
 			  		elsif !FunSetting.last.nil? && FunSetting.last.recently_bought?
 			  			# is the new price larger than the last bought price * multiplier?
@@ -1160,7 +1160,7 @@ class BinanceBot
 		  close   = proc { 
 		  	puts 'closed' 
 		  	mailer = Mailer.new
-		  	mailer.send_text(text: "WTC Closed")
+		  	mailer.send_text(text: "FUN Closed")
 		  	self.fun_stream
 		  }
 

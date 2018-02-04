@@ -12,12 +12,12 @@ bot = BinanceBot.new
 
 # Uncomment to start live trading
 # Uncomment 1 line at a time, each stream goes into its own tab on console
-# bot.fun_stream
+bot.fun_stream
 # bot.wtc_stream
 # bot.ven_stream
 # bot.trx_stream
 # bot.amb_stream
-bot.xlm_stream
+# bot.xlm_stream
 
 # Uncomment lines 20-47 to download historical prices for a coin pair
 # Replace the symbols with coin of choice and model names with coin of choice
