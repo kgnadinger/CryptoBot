@@ -16,7 +16,7 @@ bot = BinanceBot.new
 # bot.wtc_stream
 # bot.ven_stream
 # bot.trx_stream
-bot.amb_stream
+# bot.amb_stream
 
 # Uncomment lines 20-47 to download historical prices for a coin pair
 # Replace the symbols with coin of choice and model names with coin of choice
