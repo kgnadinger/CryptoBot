@@ -17,6 +17,7 @@ bot = BinanceBot.new
 # bot.ven_stream
 # bot.trx_stream
 # bot.amb_stream
+bot.xlm_stream
 
 # Uncomment lines 20-47 to download historical prices for a coin pair
 # Replace the symbols with coin of choice and model names with coin of choice
@@ -24,22 +25,22 @@ bot = BinanceBot.new
 # def download_historical_prices
 # 	bot = BinanceBot.new
 # 	(1..30).each do |i|
-# 		earliest_time_row = AmbEth.order(:opening_time).first
+# 		earliest_time_row = XlmEth.order(:opening_time).first
 # 		if earliest_time_row && earliest_time_row.opening_time
-# 			raw_price_history = bot.price_history_with_end_time("AMBETH", '5m', 500, earliest_time_row.opening_time)
+# 			raw_price_history = bot.price_history_with_end_time("XLMETH", '5m', 500, earliest_time_row.opening_time)
 # 		else
-# 			raw_price_history = bot.price_history("AMBETH", '5m', 500)
+# 			raw_price_history = bot.price_history("XLMETH", '5m', 500)
 # 		end
 
 # 		raw_price_history.each do |raw_price|
-# 			coin_eth = AmbEth.where(opening_time: raw_price[:open_time])
+# 			coin_eth = XlmEth.where(opening_time: raw_price[:open_time])
 # 			if coin_eth && coin_eth.first
 # 				coin_eth.first.update(opening_time: raw_price[:open_time], 
 # 									 closing_price: raw_price[:close_price], 
 # 									 closing_time: raw_price[:close_time],
 # 									 updated_at: DateTime.now)
 # 			else 
-# 				coin_eth = AmbEth.new(opening_time: raw_price[:open_time], 
+# 				coin_eth = XlmEth.new(opening_time: raw_price[:open_time], 
 # 									 closing_price: raw_price[:close_price], 
 # 									 closing_time: raw_price[:close_time],
 # 									 created_at: DateTime.now,

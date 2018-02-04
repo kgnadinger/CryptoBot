@@ -73,6 +73,189 @@ class BinanceBot
 		balance
 	end
 
+	def xlm_stream
+		trying_to_buy = false
+		buy_start_time = DateTime.now.to_time
+		buy_ceiling = 0.0
+		buy_limit = 0.0
+
+		trying_to_sell = false
+		sell_start_time = DateTime.now.to_time
+		sell_floor = 0.0
+		sell_limit = 0.0
+
+		trade_range = 0.01
+		maximum_time_to_trade = 60 * 30
+		client = Binance::Client::WebSocket.new
+		EM.run do
+		  # Create event handlers
+		  open    = proc { 
+		  	puts 'connected' 
+		  	# Download recent prices for trade pairs, this occurs at the beginning of the stream
+		  	raw_price_history = price_history("XLMETH", '5m', 500)
+	  		raw_price_history.each do |raw_price|
+				xlm_eth = XlmEth.where(opening_time: raw_price[:open_time])
+				if xlm_eth && xlm_eth.first
+					xlm_eth.first.update(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 updated_at: DateTime.now)
+				else 
+					xlm_eth = XlmEth.new(opening_time: raw_price[:open_time], 
+										 closing_price: raw_price[:close_price], 
+										 closing_time: raw_price[:close_time],
+										 created_at: DateTime.now,
+										 updated_at: DateTime.now)
+					xlm_eth.save
+				end
+			end
+		  }
+		  message = proc { |e| 
+		  	# Grab the latest data hash from binance
+		  	hash = eval(e.data)[:data]
+		  	# if the price is the closing price
+		  	if hash[:k][:x]
+		  		xlm_eth = XlmEth.where(opening_time: hash[:k][:t])
+		  		if xlm_eth && xlm_eth.first
+		  			xlm_eth.first.update(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now)
+		  		else
+		  			xlm_eth = XlmEth.new(opening_time: hash[:k][:t], 
+										 closing_price: hash[:k][:c], 
+										 closing_time: hash[:k][:T],
+										 updated_at: DateTime.now,
+										 created_at: DateTime.now)
+		  			xlm_eth.save
+		  		end
+		  		# Grab last 500 XlmEth prices
+	  			xlm_history = XlmEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+	  			price_history = xlm_history.map { |f| f.closing_price }
+		  	end
+		  	if trying_to_buy
+		  		puts "Trying To Buy **** Current Price: #{hash[:k][:c].to_f.round(10)} Ceiling: #{buy_ceiling.round(10)}, Limit: #{buy_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if DateTime.now.to_time - buy_start_time > maximum_time_to_trade
+		  			trying_to_buy = false
+		  		elsif closing_price > buy_ceiling
+		  			trying_to_buy = false
+		  			# make sure we have enough ETH to buy
+		  			eth_amount = getAmount("ETH").to_f * 0.01
+		  			if eth_amount > 0
+		  				puts "**** Buying XLMETH @ #{closing_price} *****"
+
+		  				xlm_amount = (eth_amount / closing_price).ceil
+		  				# create a buy order
+		  				create_order("XLMETH", "buy", "MARKET", xlm_amount)
+
+		  				# log to database that we bought and its price
+		  				f = XlmSetting.new(recently_bought: true, recently_bought_price: hash[:k][:c].to_f, trade_time: DateTime.now)
+		  				f.save
+
+		  				# text to alert that we bought
+		  				mailer = Mailer.new
+						mailer.send_text(text: "Buying XLMETH @ #{closing_price}")
+		  			else
+		  				puts "Out of ETH"
+		  			end
+		  		elsif closing_price < buy_limit
+		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
+		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
+		  		end
+		  	elsif trying_to_sell
+		  		puts "Trying To Sell **** Current Price: #{hash[:k][:c].to_f.round(10)} Floor: #{sell_floor.round(10)}, Limit: #{sell_limit.round(10)}"
+		  		closing_price = hash[:k][:c].to_f
+		  		if DateTime.now.to_time - sell_start_time > maximum_time_to_trade
+		  			trying_to_sell = false
+		  		elsif closing_price < sell_floor
+		  			trying_to_sell = false
+		  			xlm_amount = (getAmount("XLM").to_f * 0.25).ceil
+			  		if xlm_amount > 0
+		  				# sell
+		  				create_order("XLMETH", "sell", "MARKET", xlm_amount)
+
+		  				puts "**** Selling XLMETH @ #{closing_price} *****"
+
+		  				# text to alert that we sold
+		  				mailer = Mailer.new
+		  				mailer.send_text(text: "Selling XLMETH @ #{closing_price}")
+		  			else
+		  				"Out of XLM"
+		  			end
+		  			# update setting
+		  			if !XlmSetting.nil?
+		  				XlmSetting.last.update(recently_bought: false, trade_time: DateTime.now)
+		  			end
+		  		elsif closing_price > sell_limit
+		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
+		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
+		  		end
+		  	elsif hash[:k][:x]
+		  		# initialize array
+		  		price_history = []
+		  		if hash[:s] == "XLMETH"
+		  			puts "XLMETH"
+			  		# Grab last 500 FunEth prices
+		  			xlm_history = XlmEth.reverse_order(:opening_time).select(:id, :closing_price, :opening_time).limit(500).all.sort { |d,e| d.opening_time <=> e.opening_time }
+		  			price_history = xlm_history.map { |f| f.closing_price }
+		  		end
+
+		  		# Initialize algorithm
+		  		algorithm = RsiAlgorithm.new rsiTolerance: 10, price_history: price_history, buy_zone: 30, sell_zone: 70
+		  		signal = algorithm.analyze # buy, sell or wait
+		  		time_between_trades = 60 * 30
+		  		if hash[:s] == "XLMETH"
+			  		if signal == "buy" && !(!XlmSetting.last.nil? && (DateTime.now.to_time - XlmSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Buying XLMETH****"
+			  			trying_to_buy = true
+			  			buy_start_time = DateTime.now.to_time
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		# Check if last setting exists and that recently bought is true
+			  		elsif !XlmSetting.last.nil? && XlmSetting.last.recently_bought?
+			  			# is the new price larger than the last bought price * multiplier?
+			  			if hash[:k][:c].to_f > XlmSetting.last.recently_bought_price * 1.11
+				  			puts "***Selling To Keep Profit***"
+				  			trying_to_sell = true
+				  			sell_start_time = DateTime.now.to_time
+			  				sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  				sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+				  		end
+			  		elsif signal == "sell" && !(!XlmSetting.last.nil? && (DateTime.now.to_time - XlmSetting.last.trade_time.to_time < time_between_trades))
+			  			puts "****Selling****"
+			  			trying_to_sell = true
+			  			sell_start_time = DateTime.now.to_time
+			  			sell_floor = hash[:k][:c].to_f  * (1 - (trade_range / 2.0))
+			  			sell_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  		else
+			  			puts "****Waiting****"
+			  		end
+			  	
+			  	else
+			  		puts "Couldn't decipher trade symbol"
+			  	end
+		  	end
+		  	
+		  }
+		  error   = proc { |e| puts e }
+		  close   = proc { 
+		  	puts 'closed' 
+		  	mailer = Mailer.new
+		  	mailer.send_text(text: "XLM Closed")
+		  	self.xlm_stream
+		  }
+
+		  # Bundle our event handlers into Hash
+		  methods = { open: open, message: message, error: error, close: close }
+
+		  client.multi streams: [{ type: 'kline', symbol: 'XLMETH', interval: '5m'}],
+		               methods: methods 
+		end
+	end
+
 	def amb_stream
 		trying_to_buy = false
 		buy_start_time = DateTime.now.to_time
