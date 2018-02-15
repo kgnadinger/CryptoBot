@@ -17,6 +17,7 @@ gem 'gruff'
 gem 'pony'
 gem 'spreadsheet'
 gem 'linear-regression'
+gem 'whenever'
 # Use Puma as the app server
 # Use SCSS for stylesheets
 # Use Uglifier as compressor for JavaScript assets
