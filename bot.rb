@@ -69,7 +69,6 @@ class BinanceBot
 
 	def getAmount(symbol)
 		balance = 0
-		puts account_info
 		account_info["balances"].each do |b|
 			if b["asset"] == symbol
 				balance = b["free"]
@@ -229,6 +228,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -260,6 +260,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -414,6 +415,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -445,6 +447,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -599,6 +602,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -608,7 +612,7 @@ class BinanceBot
 		  			trying_to_sell = false
 		  		elsif closing_price < sell_floor
 		  			trying_to_sell = false
-		  			amb_amount = (getAmount("AMB").to_f * 0.75).ceil
+		  			amb_amount = (getAmount("AMB").to_f * 0.25).ceil
 			  		if amb_amount > 0
 		  				# sell
 		  				create_order("AMBETH", "sell", "MARKET", amb_amount)
@@ -630,6 +634,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -784,6 +789,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -815,6 +821,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -891,7 +898,7 @@ class BinanceBot
 		sell_limit = 0.0
 		sell_start_time = DateTime.now.to_time
 
-		trade_range = 0.02
+		trade_range = 0.03
 		maximum_time_to_trade = 60 * 60
 		client = Binance::Client::WebSocket.new
 		EM.run do
@@ -969,6 +976,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -978,7 +986,7 @@ class BinanceBot
 		  			trying_to_sell = false
 		  		elsif closing_price < sell_floor
 		  			trying_to_sell = false
-		  			ven_amount = (getAmount("VEN").to_f * 0.5).ceil
+		  			ven_amount = (getAmount("VEN").to_f * 0.25).ceil
 			  		if ven_amount > 0
 		  				# sell
 		  				create_order("VENETH", "sell", "MARKET", ven_amount)
@@ -1000,6 +1008,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -1078,7 +1087,7 @@ class BinanceBot
 		sell_limit = 0.0
 		sell_start_time = DateTime.now.to_time
 
-		trade_range = 0.02
+		trade_range = 0.03
 		maximum_time_to_trade = 60 * 60
 		client = Binance::Client::WebSocket.new
 		EM.run do
@@ -1155,6 +1164,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -1164,7 +1174,7 @@ class BinanceBot
 		  			trying_to_sell = false
 		  		elsif closing_price < sell_floor
 		  			trying_to_sell = false
-		  			wtc_amount = (getAmount("WTC").to_f * 0.5).round(2)
+		  			wtc_amount = (getAmount("WTC").to_f * 0.25).round(2)
 			  		if wtc_amount > 0
 		  				# sell
 		  				create_order("WTCETH", "sell", "MARKET", wtc_amount)
@@ -1186,6 +1196,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -1340,6 +1351,7 @@ class BinanceBot
 		  		elsif closing_price < buy_limit
 		  			buy_ceiling = closing_price * (1 + (trade_range / 2.0))
 		  			buy_limit = closing_price * (1 - (trade_range / 2.0))
+		  			buy_start_time = DateTime.now.to_time
 		  			puts "Adjust Buy Ceiling: #{buy_ceiling.round(10)}, Adjust Limit: #{buy_limit.round(10)}"
 		  		end
 		  	elsif trying_to_sell
@@ -1371,6 +1383,7 @@ class BinanceBot
 		  		elsif closing_price > sell_limit
 		  			sell_floor = closing_price * (1 - (trade_range / 2.0))
 		  			sell_limit = closing_price * (1 + (trade_range / 2.0))
+		  			sell_start_time = DateTime.now.to_time
 		  			puts "Adjust Sell Ceiling: #{sell_floor.round(10)}, Adjust Limit: #{sell_limit.round(10)}"
 		  		end
 		  	elsif hash[:k][:x]
@@ -1389,11 +1402,11 @@ class BinanceBot
 		  		time_between_trades = 60 * 60
 		  		if hash[:s] == "FUNETH"
 			  		if signal == "buy" && !(!FunSetting.last.nil? && (DateTime.now.to_time - FunSetting.last.trade_time.to_time < time_between_trades))
-			  			# puts "****Buying FUNETH****"
-			  			# trying_to_buy = true
-			  			# buy_start_time = DateTime.now.to_time
-		  				# buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
-		  				# buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
+			  			puts "****Buying FUNETH****"
+			  			trying_to_buy = true
+			  			buy_start_time = DateTime.now.to_time
+		  				buy_ceiling = hash[:k][:c].to_f  * (1 + (trade_range / 2.0))
+		  				buy_limit = hash[:k][:c].to_f * (1 - (trade_range / 2.0))
 			  		# Check if last setting exists and that recently bought is true
 			  		elsif !FunSetting.last.nil? && FunSetting.last.recently_bought?
 			  			# is the new price larger than the last bought price * multiplier?
